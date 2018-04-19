@@ -20,7 +20,7 @@ var Renderer DefaultRenderer
 type DefaultRenderer struct {
 }
 
-func (renderer *DefaultRenderer) Render(instance *pb.Instance) error {
+func (renderer *DefaultRenderer) Render(instance *pb.Instance) ([]string, error) {
 	// for _, valueSet := range instance.value_sets {
 	// }
 
@@ -29,7 +29,7 @@ func (renderer *DefaultRenderer) Render(instance *pb.Instance) error {
 `)
 
 	var parsed interface{}
-	err := json.Unmarshal(blob, &parsed)
+	err := json.Unmarshal(jsonBlob, &parsed)
 	if err != nil {
 		fmt.Println("error:", err)
 	}
@@ -39,5 +39,5 @@ func (renderer *DefaultRenderer) Render(instance *pb.Instance) error {
 		fmt.Println("executing template:", err)
 	}
 
-	return nil
+	return []string{""}, nil
 }

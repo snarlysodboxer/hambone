@@ -5,5 +5,5 @@ import (
 )
 
 type Interface interface {
-	Render(*pb.Instance) error
+	Render(*pb.Instance) ([]string, error)
 }

@@ -17,12 +17,9 @@ var (
 	stateStorePluginPath = flag.String("state_plugin", "./plugins/state/etcd/etcd.so", "Path to a state store plugin file")
 	k8sEnginePluginPath  = flag.String("engine_plugin", "./plugins/engine/k8s-api/k8s-api.so", "Path to an engine plugin file")
 	listenAddress        = flag.String("listen_address", "127.0.0.1:50051", "The network address upon which the server should listen")
-	renderer             render.Interface
-	stateStore           state.Interface
-	k8sEngine            engine.Interface
 )
 
-func setStateStorePlugin(filePath string) {
+func getStateStorePlugin(filePath string) state.Interface {
 	stateStorePlugin, err := plugin.Open(filePath)
 	if err != nil {
 		panic(err)
@@ -35,10 +32,10 @@ func setStateStorePlugin(filePath string) {
 	if !ok {
 		panic("Unexpected type from StateStore plugin")
 	}
-	stateStore = store
+	return store
 }
 
-func setRendererPlugin(filePath string) {
+func getRendererPlugin(filePath string) render.Interface {
 	renderPlugin, err := plugin.Open(filePath)
 	if err != nil {
 		panic(err)
@@ -51,10 +48,10 @@ func setRendererPlugin(filePath string) {
 	if !ok {
 		panic("Unexpected type from Renderer plugin")
 	}
-	renderer = rend
+	return rend
 }
 
-func setK8sEnginePlugin(filePath string) {
+func getK8sEnginePlugin(filePath string) engine.Interface {
 	k8sEnginePlugin, err := plugin.Open(filePath)
 	if err != nil {
 		panic(err)
@@ -67,15 +64,16 @@ func setK8sEnginePlugin(filePath string) {
 	if !ok {
 		panic("Unexpected type from K8sEngine plugin")
 	}
-	k8sEngine = eng
+	return eng
 }
 
 func main() {
 	flag.Parse()
 
-	setStateStorePlugin(*stateStorePluginPath)
-	setRendererPlugin(*rendererPluginPath)
-	setK8sEnginePlugin(*k8sEnginePluginPath)
+	renderer := getRendererPlugin(*rendererPluginPath)
+	stateStore := getStateStorePlugin(*stateStorePluginPath)
+	k8sEngine := getK8sEnginePlugin(*k8sEnginePluginPath)
+	k8sEngine.SetRenderer(renderer)
 
 	listener, err := net.Listen("tcp", *listenAddress)
 	if err != nil {
@@ -86,9 +84,13 @@ func main() {
 	grpcServer := grpc.NewServer(opts...)
 
 	specGroupsServer := newSpecGroupsServer()
+	specGroupsServer.SetStateStore(stateStore)
 	pb.RegisterSpecGroupsServer(grpcServer, specGroupsServer)
 
 	instancesServer := newInstancesServer()
+	instancesServer.SetRenderer(renderer)
+	instancesServer.SetEngine(k8sEngine)
+	instancesServer.SetStateStore(stateStore)
 	pb.RegisterInstancesServer(grpcServer, instancesServer)
 
 	fmt.Printf("Listening on %s\n", *listenAddress)
