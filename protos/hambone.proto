@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package hambone;
+
+import "vendor/annotations.proto";
+
+service SpecGroups {
+    rpc Create(CreateSpecGroupRequest) returns (CreateSpecGroupResponse) {
+        option (google.api.http) = {
+            post: "/v1/template"
+            body: "*"
+        };
+    }
+}
+
+message Empty {}
+
+message SpecGroup {
+    int32 id = 1;
+    string name = 2;
+    repeated Spec specs = 3;
+}
+
+message Spec {
+    int32 id = 1;
+    string name = 2;
+    string template = 3;
+}
+
+message CreateSpecGroupRequest {
+    SpecGroup spec_group = 1;
+}
+
+message CreateSpecGroupResponse {
+    int32 id = 1;
+}
+
+
+service Instances {
+    rpc create(CreateInstanceRequest) returns (CreateInstanceResponse) {
+        option (google.api.http) = {
+            post: "/v1/instance"
+            body: "*"
+        };
+    }
+}
+
+message Instance {
+    int32 id = 1;
+    string name = 2;
+    int32 spec_group_id = 3;
+    repeated ValueSet value_sets = 4;
+}
+
+message ValueSet {
+    int32 spec_id = 1;
+    string json_blob = 2;
+}
+
+message CreateInstanceRequest {
+    Instance instance = 1;
+}
+
+message CreateInstanceResponse {
+    int32 id = 1;
+}
+
