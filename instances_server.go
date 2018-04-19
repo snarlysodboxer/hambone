@@ -34,7 +34,7 @@ func (server *instancesServer) SetStateStore(stateStore state.Interface) {
 func (server *instancesServer) Create(ctx context.Context, createInstanceRequest *pb.CreateInstanceRequest) (*pb.CreateInstanceResponse, error) {
 	response := &pb.CreateInstanceResponse{}
 	instance := createInstanceRequest.Instance
-	id, err := server.stateStore.AddInstance(instance)
+	id, err := server.stateStore.CreateInstance(instance)
 	if err != nil {
 		return response, err
 	}

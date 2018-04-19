@@ -20,7 +20,7 @@ func (server *specGroupsServer) SetStateStore(stateStore state.Interface) {
 
 // Create adds the given SpecGroup to the list
 func (server *specGroupsServer) Create(ctx context.Context, specGroupRequest *pb.CreateSpecGroupRequest) (*pb.CreateSpecGroupResponse, error) {
-	id, err := server.stateStore.AddSpecGroup(specGroupRequest.SpecGroup)
+	id, err := server.stateStore.CreateSpecGroup(specGroupRequest.SpecGroup)
 	if err != nil {
 		return &pb.CreateSpecGroupResponse{}, err
 	}

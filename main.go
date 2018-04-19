@@ -73,6 +73,8 @@ func main() {
 	renderer := getRendererPlugin(*rendererPluginPath)
 	stateStore := getStateStorePlugin(*stateStorePluginPath)
 	k8sEngine := getK8sEnginePlugin(*k8sEnginePluginPath)
+
+	renderer.SetStateStore(stateStore)
 	k8sEngine.SetRenderer(renderer)
 
 	listener, err := net.Listen("tcp", *listenAddress)

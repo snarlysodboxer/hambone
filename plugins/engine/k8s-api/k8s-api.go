@@ -18,12 +18,13 @@ func (engine *K8sAPIEngine) SetRenderer(renderer render.Interface) {
 
 // Apply renders and applies
 func (engine *K8sAPIEngine) ApplyInstance(instance *pb.Instance) error {
-	rendered, err := engine.renderer.Render(instance)
+	rendereds, err := engine.renderer.Render(instance)
 	if err != nil {
 		return err
 	}
-	for _, r := range rendered {
-		fmt.Printf("Applying the following spec:\n%s\n", r)
+	for _, rendered := range rendereds {
+		fmt.Printf("Applying the following spec:\n%s\n", rendered)
+		// TODO Actually apply here
 	}
 	return nil
 }
