@@ -61,6 +61,17 @@ service Instances {
             get: "/v1/instance/{id}"
         };
     }
+    // TODO
+    // rpc Render(RenderRequest) returns (RenderResponse) {
+    //     option (google.api.http) = {
+    //         get: "/v1/instance/{id}"
+    //     };
+    // }
+    // rpc Status(StatusRequest) returns (StatusResponse) {
+    //     option (google.api.http) = {
+    //         get: "/v1/instance/{id}"
+    //     };
+    // }
 }
 
 message Instance {
