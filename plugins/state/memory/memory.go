@@ -1,5 +1,7 @@
 package main
 
+// This plugin is not concurrency safe
+
 import (
 	"fmt"
 	pb "github.com/snarlysodboxer/hambone/generated"
@@ -87,13 +89,16 @@ func (store *MemoryStore) CreateSpecGroup(specGroup *pb.SpecGroup) (int32, error
 }
 
 func (store *MemoryStore) ReadSpecGroup(id int32) (*pb.SpecGroup, error) {
+	found := false
 	specGroup := &pb.SpecGroup{}
-	for _, specGroup = range store.specGroups {
-		if specGroup.Id == id {
+	for _, sG := range store.specGroups {
+		if sG.Id == id {
+			specGroup = sG
+			found = true
 			break
 		}
 	}
-	if specGroup == (&pb.SpecGroup{}) {
+	if !found {
 		return specGroup, fmt.Errorf("SpecGroup %d not found", id)
 	}
 	return specGroup, nil

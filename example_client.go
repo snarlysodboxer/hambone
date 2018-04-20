@@ -18,10 +18,11 @@ var (
 )
 
 func createSpecGroup(client pb.SpecGroupsClient) (int32, error) {
-	spec := &pb.Spec{Name: "my-product", Template: template}
+	spec := &pb.Spec{Name: "Deployment", Template: template}
 	specs := []*pb.Spec{}
 	specs = append(specs, spec)
 	specGroup := &pb.SpecGroup{}
+	specGroup.Name = "my-product"
 	specGroup.Specs = specs
 	request := &pb.CreateSpecGroupRequest{}
 	request.SpecGroup = specGroup
@@ -30,6 +31,15 @@ func createSpecGroup(client pb.SpecGroupsClient) (int32, error) {
 		return 0, err
 	}
 	return id.GetId(), nil
+}
+
+func readSpecGroup(client pb.SpecGroupsClient, id int32) (*pb.SpecGroup, error) {
+	request := &pb.ReadSpecGroupRequest{id}
+	specGroup, err := client.Read(context.Background(), request)
+	if err != nil {
+		return &pb.SpecGroup{}, err
+	}
+	return specGroup.SpecGroup, nil
 }
 
 func createInstance(client pb.InstancesClient) (int32, error) {
@@ -61,6 +71,12 @@ func main() {
 			panic(err)
 		}
 		fmt.Println("Created SpecGroup with ID: ", id)
+	case "readSpecGroup":
+		specGroup, err := readSpecGroup(specGroupsClient, 1)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Read SpecGroup: %v\n", specGroup)
 	case "createInstance":
 		id, err := createInstance(instancesClient)
 		if err != nil {

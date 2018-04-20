@@ -26,3 +26,12 @@ func (server *specGroupsServer) Create(ctx context.Context, specGroupRequest *pb
 	}
 	return &pb.CreateSpecGroupResponse{Id: id}, nil
 }
+
+// Read returns the SpecGroup for the given id
+func (server *specGroupsServer) Read(ctx context.Context, specGroupRequest *pb.ReadSpecGroupRequest) (*pb.ReadSpecGroupResponse, error) {
+	specGroup, err := server.stateStore.ReadSpecGroup(specGroupRequest.Id)
+	if err != nil {
+		return &pb.ReadSpecGroupResponse{}, err
+	}
+	return &pb.ReadSpecGroupResponse{SpecGroup: specGroup}, nil
+}

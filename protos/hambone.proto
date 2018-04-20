@@ -7,8 +7,13 @@ import "vendor/annotations.proto";
 service SpecGroups {
     rpc Create(CreateSpecGroupRequest) returns (CreateSpecGroupResponse) {
         option (google.api.http) = {
-            post: "/v1/template"
+            post: "/v1/specgroup"
             body: "*"
+        };
+    }
+    rpc Read(ReadSpecGroupRequest) returns (ReadSpecGroupResponse) {
+        option (google.api.http) = {
+            get: "/v1/specgroup/{id}"
         };
     }
 }
@@ -33,6 +38,14 @@ message CreateSpecGroupRequest {
 
 message CreateSpecGroupResponse {
     int32 id = 1;
+}
+
+message ReadSpecGroupRequest {
+    int32 id = 1;
+}
+
+message ReadSpecGroupResponse {
+    SpecGroup spec_group = 1;
 }
 
 
