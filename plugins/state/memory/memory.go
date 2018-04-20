@@ -37,11 +37,11 @@ func (store *MemoryStore) CreateInstance(instance *pb.Instance) (int32, error) {
 		return 0, err
 	}
 	instance.Id = id
-	// Ensure specGroup id exists
+	// Ensure SpecGroup id exists
 	if !store.specGroupIDExists(instance.SpecGroupId) {
 		return 0, fmt.Errorf("No SpecGroup exists with ID %d", instance.SpecGroupId)
 	}
-	// Ensure each spec id exists
+	// Ensure each Spec id exists
 	for _, valueSet := range instance.ValueSets {
 		if !store.specIDExists(valueSet.SpecId, instance.SpecGroupId) {
 			return 0, fmt.Errorf("No Spec exists with ID %d in SpecGroup %d", valueSet.SpecId, instance.SpecGroupId)
@@ -49,6 +49,22 @@ func (store *MemoryStore) CreateInstance(instance *pb.Instance) (int32, error) {
 	}
 	store.instances = append(store.instances, instance)
 	return id, nil
+}
+
+func (store *MemoryStore) ReadInstance(id int32) (*pb.Instance, error) {
+	found := false
+	instance := &pb.Instance{}
+	for _, i := range store.instances {
+		if i.Id == id {
+			instance = i
+			found = true
+			break
+		}
+	}
+	if !found {
+		return instance, fmt.Errorf("Instance %d not found", id)
+	}
+	return instance, nil
 }
 
 func (store *MemoryStore) ListInstances() (map[int32]string, error) {

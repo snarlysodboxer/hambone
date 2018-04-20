@@ -50,10 +50,15 @@ message ReadSpecGroupResponse {
 
 
 service Instances {
-    rpc create(CreateInstanceRequest) returns (CreateInstanceResponse) {
+    rpc Create(CreateInstanceRequest) returns (CreateInstanceResponse) {
         option (google.api.http) = {
             post: "/v1/instance"
             body: "*"
+        };
+    }
+    rpc Read(ReadInstanceRequest) returns (ReadInstanceResponse) {
+        option (google.api.http) = {
+            get: "/v1/instance/{id}"
         };
     }
 }
@@ -76,5 +81,13 @@ message CreateInstanceRequest {
 
 message CreateInstanceResponse {
     int32 id = 1;
+}
+
+message ReadInstanceRequest {
+    int32 id = 1;
+}
+
+message ReadInstanceResponse {
+    Instance instance = 1;
 }
 

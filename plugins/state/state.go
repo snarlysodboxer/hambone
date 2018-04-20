@@ -7,6 +7,7 @@ import (
 type Interface interface {
 	NextInstanceID() (int32, error)
 	CreateInstance(*pb.Instance) (int32, error)
+	ReadInstance(int32) (*pb.Instance, error)
 	ListInstances() (map[int32]string, error)
 
 	NextSpecGroupID() (int32, error)

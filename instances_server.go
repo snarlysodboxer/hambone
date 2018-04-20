@@ -45,3 +45,14 @@ func (server *instancesServer) Create(ctx context.Context, createInstanceRequest
 	response.Id = id
 	return response, nil
 }
+
+// Reads reads and returns an Instance for the given id
+func (server *instancesServer) Read(ctx context.Context, readInstanceRequest *pb.ReadInstanceRequest) (*pb.ReadInstanceResponse, error) {
+	response := &pb.ReadInstanceResponse{}
+	instance, err := server.stateStore.ReadInstance(readInstanceRequest.Id)
+	if err != nil {
+		return response, err
+	}
+	response.Instance = instance
+	return response, nil
+}

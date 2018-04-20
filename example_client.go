@@ -52,6 +52,15 @@ func createInstance(client pb.InstancesClient) (int32, error) {
 	return id.GetId(), nil
 }
 
+func readInstance(client pb.InstancesClient, id int32) (*pb.Instance, error) {
+	request := &pb.ReadInstanceRequest{id}
+	instance, err := client.Read(context.Background(), request)
+	if err != nil {
+		return &pb.Instance{}, err
+	}
+	return instance.Instance, nil
+}
+
 func main() {
 	flag.Parse()
 
@@ -83,6 +92,12 @@ func main() {
 			panic(err)
 		}
 		fmt.Println("Created Instance with ID: ", id)
+	case "readInstance":
+		instance, err := readInstance(instancesClient, 1)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Read Instance: %v\n", instance)
 	default:
 		fmt.Println("Unrecognized action")
 	}
