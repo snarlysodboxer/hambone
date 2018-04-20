@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	template = `this text template from {{.Place}}`
+	template = `this text template for {{.Name}}`
 )
 
 var (
@@ -18,7 +18,7 @@ var (
 )
 
 func createSpecGroup(client pb.SpecGroupsClient) (int32, error) {
-	spec := &pb.Spec{123, "my-product", template}
+	spec := &pb.Spec{Name: "my-product", Template: template}
 	specs := []*pb.Spec{}
 	specs = append(specs, spec)
 	specGroup := &pb.SpecGroup{}
@@ -33,7 +33,7 @@ func createSpecGroup(client pb.SpecGroupsClient) (int32, error) {
 }
 
 func createInstance(client pb.InstancesClient) (int32, error) {
-	instance := &pb.Instance{456, "my-client", 123, []*pb.ValueSet{&pb.ValueSet{1, `{"Name": "my-client"}`}}}
+	instance := &pb.Instance{Name: "my-client", SpecGroupId: 1, ValueSets: []*pb.ValueSet{&pb.ValueSet{1, `{"Name": "my-client"}`}}}
 	request := &pb.CreateInstanceRequest{instance}
 	id, err := client.Create(context.Background(), request)
 	if err != nil {

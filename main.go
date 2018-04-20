@@ -14,7 +14,7 @@ import (
 
 var (
 	rendererPluginPath   = flag.String("render_plugin", "./plugins/render/default/default.so", "Path to a render plugin file")
-	stateStorePluginPath = flag.String("state_plugin", "./plugins/state/etcd/etcd.so", "Path to a state store plugin file")
+	stateStorePluginPath = flag.String("state_plugin", "./plugins/state/memory/memory.so", "Path to a state store plugin file")
 	k8sEnginePluginPath  = flag.String("engine_plugin", "./plugins/engine/k8s-api/k8s-api.so", "Path to an engine plugin file")
 	listenAddress        = flag.String("listen_address", "127.0.0.1:50051", "The network address upon which the server should listen")
 )
