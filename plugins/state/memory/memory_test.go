@@ -25,7 +25,7 @@ func getSpecGroup(name string) *pb.SpecGroup {
 
 func getInstance(name string) *pb.Instance {
 	instance := &pb.Instance{
-		Name: "my-client", SpecGroupName: "my-product", ValueSets: []*pb.ValueSet{
+		Name: name, SpecGroupName: "my-product", ValueSets: []*pb.ValueSet{
 			&pb.ValueSet{"Deployment", `{"Name": "my-client"}`},
 			&pb.ValueSet{"Service", `{"Name": "my-client"}`},
 		},
@@ -143,6 +143,34 @@ func TestReadSpecGroup(t *testing.T) {
 	msg := "SpecGroup 'asdf' not found"
 	if err.Error() != msg {
 		t.Errorf("Expected a different error, want: \"%s\", got: \"%s\"", msg, err.Error())
+		t.FailNow()
+	}
+}
+
+func TestListSpecGroups(t *testing.T) {
+	store := main.NewStore()
+
+	// Read SpecGroups list
+	specGroup := getSpecGroup("my-product")
+	_, err := store.CreateSpecGroup(specGroup)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	specGroup1 := getSpecGroup("my-product1")
+	_, err = store.CreateSpecGroup(specGroup1)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	specGroups, err := store.ListSpecGroups()
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	expected := []string{"my-product", "my-product1"}
+	if specGroups[0] != "my-product" || specGroups[1] != "my-product1" {
+		t.Errorf("Expected a different SpecGroups list, want: \"%v\", got: \"%v\"", expected, specGroups)
 		t.FailNow()
 	}
 }
@@ -324,6 +352,40 @@ func TestReadInstance(t *testing.T) {
 	msg := "Instance 'asdf' not found"
 	if err.Error() != msg {
 		t.Errorf("Expected a different error, want: \"%s\", got: \"%s\"", msg, err.Error())
+		t.FailNow()
+	}
+}
+
+func TestListInstances(t *testing.T) {
+	store := main.NewStore()
+	specGroup := getSpecGroup("my-product")
+	_, err := store.CreateSpecGroup(specGroup)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	// Read Instances list
+	instance := getInstance("my-client")
+	_, err = store.CreateInstance(instance)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	instance1 := getInstance("my-client1")
+	_, err = store.CreateInstance(instance1)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	instances, err := store.ListInstances()
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	expected := map[string]string{"my-client": "my-product", "my-client1": "my-product1"}
+	if instances["my-client"] != "my-product" || instances["my-client1"] != "my-product" {
+		t.Errorf("Expected a different Instances list, want: \"%v\", got: \"%v\"", expected, instances)
 		t.FailNow()
 	}
 }
