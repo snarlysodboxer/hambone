@@ -28,13 +28,14 @@ func (server *instancesServer) SetEngine(engine engine.Interface) {
 
 func (server *instancesServer) SetStateStore(stateStore state.Interface) {
 	server.stateStore = stateStore
+	server.stateStore.Init()
 }
 
 // Create adds the given Instance to the list, and applies it to the Kubernetes cluster
 func (server *instancesServer) Create(ctx context.Context, createInstanceRequest *pb.CreateInstanceRequest) (*pb.CreateInstanceResponse, error) {
 	response := &pb.CreateInstanceResponse{}
 	instance := createInstanceRequest.Instance
-	id, err := server.stateStore.CreateInstance(instance)
+	name, err := server.stateStore.CreateInstance(instance)
 	if err != nil {
 		return response, err
 	}
@@ -42,14 +43,14 @@ func (server *instancesServer) Create(ctx context.Context, createInstanceRequest
 	if err != nil {
 		return response, err
 	}
-	response.Id = id
+	response.Name = name
 	return response, nil
 }
 
-// Reads reads and returns an Instance for the given id
+// Reads reads and returns an Instance for the given name
 func (server *instancesServer) Read(ctx context.Context, readInstanceRequest *pb.ReadInstanceRequest) (*pb.ReadInstanceResponse, error) {
 	response := &pb.ReadInstanceResponse{}
-	instance, err := server.stateStore.ReadInstance(readInstanceRequest.Id)
+	instance, err := server.stateStore.ReadInstance(readInstanceRequest.Name)
 	if err != nil {
 		return response, err
 	}

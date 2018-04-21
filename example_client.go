@@ -17,7 +17,7 @@ var (
 	serverAddress = flag.String("server_address", "127.0.0.1:50051", "Where to reach the server")
 )
 
-func createSpecGroup(client pb.SpecGroupsClient) (int32, error) {
+func createSpecGroup(client pb.SpecGroupsClient) (string, error) {
 	spec := &pb.Spec{Name: "Deployment", Template: template}
 	specs := []*pb.Spec{}
 	specs = append(specs, spec)
@@ -26,15 +26,15 @@ func createSpecGroup(client pb.SpecGroupsClient) (int32, error) {
 	specGroup.Specs = specs
 	request := &pb.CreateSpecGroupRequest{}
 	request.SpecGroup = specGroup
-	id, err := client.Create(context.Background(), request)
+	response, err := client.Create(context.Background(), request)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
-	return id.GetId(), nil
+	return response.GetName(), nil
 }
 
-func readSpecGroup(client pb.SpecGroupsClient, id int32) (*pb.SpecGroup, error) {
-	request := &pb.ReadSpecGroupRequest{id}
+func readSpecGroup(client pb.SpecGroupsClient, name string) (*pb.SpecGroup, error) {
+	request := &pb.ReadSpecGroupRequest{name}
 	specGroup, err := client.Read(context.Background(), request)
 	if err != nil {
 		return &pb.SpecGroup{}, err
@@ -42,23 +42,23 @@ func readSpecGroup(client pb.SpecGroupsClient, id int32) (*pb.SpecGroup, error) 
 	return specGroup.SpecGroup, nil
 }
 
-func createInstance(client pb.InstancesClient) (int32, error) {
-	instance := &pb.Instance{Name: "my-client", SpecGroupId: 1, ValueSets: []*pb.ValueSet{&pb.ValueSet{1, `{"Name": "my-client"}`}}}
+func createInstance(client pb.InstancesClient) (string, error) {
+	instance := &pb.Instance{Name: "my-client", SpecGroupName: "my-product", ValueSets: []*pb.ValueSet{&pb.ValueSet{"Deployment", `{"Name": "my-client"}`}}}
 	request := &pb.CreateInstanceRequest{instance}
-	id, err := client.Create(context.Background(), request)
+	response, err := client.Create(context.Background(), request)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
-	return id.GetId(), nil
+	return response.GetName(), nil
 }
 
-func readInstance(client pb.InstancesClient, id int32) (*pb.Instance, error) {
-	request := &pb.ReadInstanceRequest{id}
-	instance, err := client.Read(context.Background(), request)
+func readInstance(client pb.InstancesClient, name string) (*pb.Instance, error) {
+	request := &pb.ReadInstanceRequest{name}
+	response, err := client.Read(context.Background(), request)
 	if err != nil {
 		return &pb.Instance{}, err
 	}
-	return instance.Instance, nil
+	return response.Instance, nil
 }
 
 func main() {
@@ -75,29 +75,29 @@ func main() {
 
 	switch *action {
 	case "createSpecGroup":
-		id, err := createSpecGroup(specGroupsClient)
+		name, err := createSpecGroup(specGroupsClient)
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println("Created SpecGroup with ID: ", id)
+		fmt.Printf("Created SpecGroup '%s'\n", name)
 	case "readSpecGroup":
-		specGroup, err := readSpecGroup(specGroupsClient, 1)
+		specGroup, err := readSpecGroup(specGroupsClient, "my-product")
 		if err != nil {
 			panic(err)
 		}
-		fmt.Printf("Read SpecGroup: %v\n", specGroup)
+		fmt.Printf("Read SpecGroup: '%v'\n", specGroup)
 	case "createInstance":
-		id, err := createInstance(instancesClient)
+		name, err := createInstance(instancesClient)
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println("Created Instance with ID: ", id)
+		fmt.Printf("Created Instance '%s'\n", name)
 	case "readInstance":
-		instance, err := readInstance(instancesClient, 1)
+		instance, err := readInstance(instancesClient, "my-client")
 		if err != nil {
 			panic(err)
 		}
-		fmt.Printf("Read Instance: %v\n", instance)
+		fmt.Printf("Read Instance: '%v'\n", instance)
 	default:
 		fmt.Println("Unrecognized action")
 	}

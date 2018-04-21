@@ -13,7 +13,7 @@ service SpecGroups {
     }
     rpc Read(ReadSpecGroupRequest) returns (ReadSpecGroupResponse) {
         option (google.api.http) = {
-            get: "/v1/specgroup/{id}"
+            get: "/v1/specgroup/{name}"
         };
     }
 }
@@ -21,15 +21,13 @@ service SpecGroups {
 message Empty {}
 
 message SpecGroup {
-    int32 id = 1;
-    string name = 2;
-    repeated Spec specs = 3;
+    string name = 1;
+    repeated Spec specs = 2;
 }
 
 message Spec {
-    int32 id = 1;
-    string name = 2;
-    string template = 3;
+    string name = 1;
+    string template = 2;
 }
 
 message CreateSpecGroupRequest {
@@ -37,11 +35,11 @@ message CreateSpecGroupRequest {
 }
 
 message CreateSpecGroupResponse {
-    int32 id = 1;
+    string name = 1;
 }
 
 message ReadSpecGroupRequest {
-    int32 id = 1;
+    string name = 1;
 }
 
 message ReadSpecGroupResponse {
@@ -58,31 +56,30 @@ service Instances {
     }
     rpc Read(ReadInstanceRequest) returns (ReadInstanceResponse) {
         option (google.api.http) = {
-            get: "/v1/instance/{id}"
+            get: "/v1/instance/{name}"
         };
     }
     // TODO
     // rpc Render(RenderRequest) returns (RenderResponse) {
     //     option (google.api.http) = {
-    //         get: "/v1/instance/{id}"
+    //         get: "/v1/instance/render{name}"
     //     };
     // }
     // rpc Status(StatusRequest) returns (StatusResponse) {
     //     option (google.api.http) = {
-    //         get: "/v1/instance/{id}"
+    //         get: "/v1/instance/status/{name}"
     //     };
     // }
 }
 
 message Instance {
-    int32 id = 1;
-    string name = 2;
-    int32 spec_group_id = 3;
-    repeated ValueSet value_sets = 4;
+    string name = 1;
+    string spec_group_name = 2;
+    repeated ValueSet value_sets = 3;
 }
 
 message ValueSet {
-    int32 spec_id = 1;
+    string spec_name = 1;
     string json_blob = 2;
 }
 
@@ -91,11 +88,11 @@ message CreateInstanceRequest {
 }
 
 message CreateInstanceResponse {
-    int32 id = 1;
+    string name = 1;
 }
 
 message ReadInstanceRequest {
-    int32 id = 1;
+    string name = 1;
 }
 
 message ReadInstanceResponse {

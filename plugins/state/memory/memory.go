@@ -5,143 +5,193 @@ package main
 import (
 	"fmt"
 	pb "github.com/snarlysodboxer/hambone/generated"
-	"sort"
 )
 
-var StateStore MemoryStore
+var (
+	StateStore MemoryStore
+)
 
 type MemoryStore struct {
-	specGroups []*pb.SpecGroup
-	instances  []*pb.Instance
+	specGroups map[string]*pb.SpecGroup
+	instances  map[string]*pb.Instance
 }
 
-func (store *MemoryStore) NextInstanceID() (int32, error) {
-	ids := []int{}
-	list, err := store.ListInstances()
-	if err != nil {
-		return 0, err
-	}
-	if len(list) == 0 {
-		return 1, nil
-	}
-	for key, _ := range list {
-		ids = append(ids, int(key))
-	}
-	sort.Ints(ids)
-	return int32(ids[len(ids)-1] + 1), nil
+func (store *MemoryStore) Init() {
+	store.specGroups = make(map[string]*pb.SpecGroup)
+	store.instances = make(map[string]*pb.Instance)
 }
 
-func (store *MemoryStore) CreateInstance(instance *pb.Instance) (int32, error) {
-	id, err := store.NextInstanceID()
-	if err != nil {
-		return 0, err
+func NewStore() *MemoryStore {
+	return &MemoryStore{make(map[string]*pb.SpecGroup), make(map[string]*pb.Instance)}
+}
+
+func (store *MemoryStore) instanceNameIsUnique(name string) bool {
+	names := []string{}
+	for instanceName, _ := range store.instances {
+		names = append(names, instanceName)
 	}
-	instance.Id = id
-	// Ensure SpecGroup id exists
-	if !store.specGroupIDExists(instance.SpecGroupId) {
-		return 0, fmt.Errorf("No SpecGroup exists with ID %d", instance.SpecGroupId)
+	names = append(names, name)
+	if hasDuplicates(names) {
+		return false
 	}
-	// Ensure each Spec id exists
+	return true
+}
+
+func (store *MemoryStore) CreateInstance(instance *pb.Instance) (string, error) {
+	// Ensure Instance Name is set
+	if instance.Name == "" {
+		return "", fmt.Errorf("Instance Name cannot be empty")
+	}
+	// Ensure Instance Name doesn't already exist
+	if !store.instanceNameIsUnique(instance.Name) {
+		return "", fmt.Errorf("An Instance named '%s' already exists", instance.Name)
+	}
+	// Ensure SpecGroup Name exists
+	if !store.specGroupExists(instance.SpecGroupName) {
+		return "", fmt.Errorf("No SpecGroup exists named '%s'", instance.SpecGroupName)
+	}
+	// Ensure each ValueSet SpecName exists
 	for _, valueSet := range instance.ValueSets {
-		if !store.specIDExists(valueSet.SpecId, instance.SpecGroupId) {
-			return 0, fmt.Errorf("No Spec exists with ID %d in SpecGroup %d", valueSet.SpecId, instance.SpecGroupId)
+		if !store.specExistsInSpecGroup(valueSet.SpecName, instance.SpecGroupName) {
+			return "", fmt.Errorf("SpecGroup '%s' has no Spec named '%s'", instance.SpecGroupName, valueSet.SpecName)
 		}
 	}
-	store.instances = append(store.instances, instance)
-	return id, nil
+	// Ensure each ValueSet SpecName is unique
+	names := []string{}
+	for _, valueSet := range instance.ValueSets {
+		names = append(names, valueSet.SpecName)
+	}
+	if hasDuplicates(names) {
+		return "", fmt.Errorf("ValueSet SpecNames must be unique within an Instance")
+	}
+	// Ensure each ValueSet JsonBlob is set
+	for _, valueSet := range instance.ValueSets {
+		if valueSet.JsonBlob == "" {
+			return "", fmt.Errorf("ValueSet JsonBlob's must be non-empty")
+		}
+	}
+	store.instances[instance.Name] = instance
+	return instance.Name, nil
 }
 
-func (store *MemoryStore) ReadInstance(id int32) (*pb.Instance, error) {
+func hasDuplicates(names []string) bool {
+	if len(names) == len(uniqueNonEmptyElementsOf(names)) {
+		return false
+	}
+	return true
+}
+
+func (store *MemoryStore) ReadInstance(name string) (*pb.Instance, error) {
 	found := false
 	instance := &pb.Instance{}
-	for _, i := range store.instances {
-		if i.Id == id {
+	for instanceName, i := range store.instances {
+		if instanceName == name {
 			instance = i
 			found = true
 			break
 		}
 	}
 	if !found {
-		return instance, fmt.Errorf("Instance %d not found", id)
+		return instance, fmt.Errorf("Instance '%s' not found", name)
 	}
 	return instance, nil
 }
 
-func (store *MemoryStore) ListInstances() (map[int32]string, error) {
-	response := map[int32]string{}
-	for _, instance := range store.instances {
-		response[instance.Id] = instance.Name
+func (store *MemoryStore) ListInstances() (map[string]string, error) {
+	response := map[string]string{}
+	for name, instance := range store.instances {
+		response[name] = instance.SpecGroupName
 	}
 	return response, nil
 }
 
-func (store *MemoryStore) NextSpecGroupID() (int32, error) {
-	ids := []int{}
-	list, err := store.ListSpecGroups()
-	if err != nil {
-		return 0, err
+func (store *MemoryStore) specGroupNameIsUnique(name string) bool {
+	if _, ok := store.specGroups[name]; ok {
+		return false
 	}
-	if len(list) == 0 {
-		return 1, nil
-	}
-	for key, _ := range list {
-		ids = append(ids, int(key))
-	}
-	sort.Ints(ids)
-	return int32(ids[len(ids)-1] + 1), nil
+	return true
 }
 
-func (store *MemoryStore) CreateSpecGroup(specGroup *pb.SpecGroup) (int32, error) {
-	id, err := store.NextSpecGroupID()
-	if err != nil {
-		return 0, err
+func (store *MemoryStore) specNamesAreUnique(specs []*pb.Spec) bool {
+	names := []string{}
+	for _, spec := range specs {
+		names = append(names, spec.Name)
 	}
-	specGroup.Id = id
-	for sequence, spec := range specGroup.Specs {
-		spec.Id = int32(sequence + 1)
+	if hasDuplicates(names) {
+		return false
 	}
-	store.specGroups = append(store.specGroups, specGroup)
-	return id, nil
+	return true
 }
 
-func (store *MemoryStore) ReadSpecGroup(id int32) (*pb.SpecGroup, error) {
+func uniqueNonEmptyElementsOf(s []string) []string {
+	uniqueMap := make(map[string]bool, len(s))
+	uniqueSlice := make([]string, len(uniqueMap))
+	for _, element := range s {
+		if len(element) != 0 {
+			if !uniqueMap[element] {
+				uniqueSlice = append(uniqueSlice, element)
+				uniqueMap[element] = true
+			}
+		}
+	}
+	return uniqueSlice
+}
+
+func (store *MemoryStore) CreateSpecGroup(specGroup *pb.SpecGroup) (string, error) {
+	// Ensure Name is not empty
+	if specGroup.Name == "" {
+		return "", fmt.Errorf("SpecGroup Name cannot be empty")
+	}
+	// Ensure Name is unique
+	if !store.specGroupNameIsUnique(specGroup.Name) {
+		return "", fmt.Errorf("A SpecGroup named '%s' already exists", specGroup.Name)
+	}
+	// Ensure each Spec Name is unique
+	if !store.specNamesAreUnique(specGroup.Specs) {
+		return "", fmt.Errorf("Spec names are not unique")
+	}
+	store.specGroups[specGroup.Name] = specGroup
+	return specGroup.Name, nil
+}
+
+func (store *MemoryStore) ReadSpecGroup(name string) (*pb.SpecGroup, error) {
 	found := false
 	specGroup := &pb.SpecGroup{}
-	for _, sG := range store.specGroups {
-		if sG.Id == id {
+	for specGroupName, sG := range store.specGroups {
+		if specGroupName == name {
 			specGroup = sG
 			found = true
 			break
 		}
 	}
 	if !found {
-		return specGroup, fmt.Errorf("SpecGroup %d not found", id)
+		return specGroup, fmt.Errorf("SpecGroup '%s' not found", name)
 	}
 	return specGroup, nil
 }
 
-func (store *MemoryStore) ListSpecGroups() (map[int32]string, error) {
-	response := map[int32]string{}
-	for _, specGroup := range store.specGroups {
-		response[specGroup.Id] = specGroup.Name
+func (store *MemoryStore) ListSpecGroups() ([]string, error) {
+	names := []string{}
+	for name, _ := range store.specGroups {
+		names = append(names, name)
 	}
-	return response, nil
+	return names, nil
 }
 
-func (store *MemoryStore) specGroupIDExists(id int32) bool {
-	for _, specGroup := range store.specGroups {
-		if specGroup.Id == id {
+func (store *MemoryStore) specGroupExists(name string) bool {
+	for specGroupName, _ := range store.specGroups {
+		if specGroupName == name {
 			return true
 		}
 	}
 	return false
 }
 
-func (store *MemoryStore) specIDExists(specID, specGroupID int32) bool {
-	for _, specGroup := range store.specGroups {
-		if specGroup.Id == specGroupID {
+func (store *MemoryStore) specExistsInSpecGroup(specName, specGroupName string) bool {
+	for sGName, specGroup := range store.specGroups {
+		if sGName == specGroupName {
 			for _, spec := range specGroup.Specs {
-				if spec.Id == specID {
+				if spec.Name == specName {
 					return true
 				}
 			}

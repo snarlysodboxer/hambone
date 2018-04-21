@@ -5,13 +5,13 @@ import (
 )
 
 type Interface interface {
-	NextInstanceID() (int32, error)
-	CreateInstance(*pb.Instance) (int32, error)
-	ReadInstance(int32) (*pb.Instance, error)
-	ListInstances() (map[int32]string, error)
+	Init()
 
-	NextSpecGroupID() (int32, error)
-	CreateSpecGroup(*pb.SpecGroup) (int32, error)
-	ReadSpecGroup(int32) (*pb.SpecGroup, error)
-	ListSpecGroups() (map[int32]string, error)
+	CreateInstance(*pb.Instance) (string, error)
+	ReadInstance(string) (*pb.Instance, error)
+	ListInstances() (map[string]string, error)
+
+	CreateSpecGroup(*pb.SpecGroup) (string, error)
+	ReadSpecGroup(string) (*pb.SpecGroup, error)
+	ListSpecGroups() ([]string, error)
 }
