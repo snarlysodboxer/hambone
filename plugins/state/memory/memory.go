@@ -105,6 +105,20 @@ func (store *MemoryStore) ListInstances() (map[string]string, error) {
 	return response, nil
 }
 
+func (store *MemoryStore) UpdateInstance(instance *pb.Instance) (string, error) {
+	// Ensure Name is not empty
+	if instance.Name == "" {
+		return "", fmt.Errorf("Instance Name cannot be empty")
+	}
+	// Ensure each ValueSet SpecName is unique
+	if !store.valueSetNamesAreUnique(instance.ValueSets) {
+		return "", fmt.Errorf("ValueSet SpecNames are not unique")
+	}
+
+	store.instances[instance.Name] = instance
+	return instance.Name, nil
+}
+
 func (store *MemoryStore) specGroupNameIsUnique(name string) bool {
 	if _, ok := store.specGroups[name]; ok {
 		return false
@@ -116,6 +130,17 @@ func (store *MemoryStore) specNamesAreUnique(specs []*pb.Spec) bool {
 	names := []string{}
 	for _, spec := range specs {
 		names = append(names, spec.Name)
+	}
+	if hasDuplicates(names) {
+		return false
+	}
+	return true
+}
+
+func (store *MemoryStore) valueSetNamesAreUnique(valueSets []*pb.ValueSet) bool {
+	names := []string{}
+	for _, valueSet := range valueSets {
+		names = append(names, valueSet.SpecName)
 	}
 	if hasDuplicates(names) {
 		return false
@@ -168,6 +193,20 @@ func (store *MemoryStore) ReadSpecGroup(name string) (*pb.SpecGroup, error) {
 		return specGroup, fmt.Errorf("SpecGroup '%s' not found", name)
 	}
 	return specGroup, nil
+}
+
+func (store *MemoryStore) UpdateSpecGroup(specGroup *pb.SpecGroup) (string, error) {
+	// Ensure Name is not empty
+	if specGroup.Name == "" {
+		return "", fmt.Errorf("SpecGroup Name cannot be empty")
+	}
+	// Ensure each Spec Name is unique
+	if !store.specNamesAreUnique(specGroup.Specs) {
+		return "", fmt.Errorf("Spec names are not unique")
+	}
+
+	store.specGroups[specGroup.Name] = specGroup
+	return specGroup.Name, nil
 }
 
 func (store *MemoryStore) ListSpecGroups() ([]string, error) {
