@@ -157,6 +157,14 @@ func TestListSpecGroups(t *testing.T) {
 		t.Errorf("Expected a different SpecGroups list, want: \"%v\", got: \"%v\"", expected, specGroups)
 		t.FailNow()
 	}
+
+	// Reads empty SpecGroup list
+	store = main.NewStore()
+	specGroups, err = store.ListSpecGroups()
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
 }
 
 func TestUpdateSpecGroup(t *testing.T) {
@@ -203,6 +211,11 @@ func TestUpdateSpecGroup(t *testing.T) {
 	errorMsg = "Received no error updating a SpecGroup with non-unique Spec names"
 	expectMsg = "Spec names are not unique"
 	expectError(err, expectMsg, errorMsg, t)
+}
+
+// TODO
+func TestDeleteSpecGroup(t *testing.T) {
+	// Cannot delete SpecGroup which has linked Instances
 }
 
 //////// Instances
@@ -355,6 +368,14 @@ func TestListInstances(t *testing.T) {
 	expected := map[string]string{"my-client": "my-product", "my-client1": "my-product1"}
 	if instances["my-client"] != "my-product" || instances["my-client1"] != "my-product" {
 		t.Errorf("Expected a different Instances list, want: \"%v\", got: \"%v\"", expected, instances)
+		t.FailNow()
+	}
+
+	// Reads empty Instances list
+	store = main.NewStore()
+	instances, err = store.ListInstances()
+	if err != nil {
+		t.Error(err)
 		t.FailNow()
 	}
 }
