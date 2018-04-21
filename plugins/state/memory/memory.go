@@ -46,7 +46,7 @@ func (store *MemoryStore) CreateInstance(instance *pb.Instance) (string, error) 
 	if !store.instanceNameIsUnique(instance.Name) {
 		return "", fmt.Errorf("An Instance named '%s' already exists", instance.Name)
 	}
-	// Ensure SpecGroup Name exists
+	// Ensure referenced SpecGroup Name exists
 	if !store.specGroupExists(instance.SpecGroupName) {
 		return "", fmt.Errorf("No SpecGroup exists named '%s'", instance.SpecGroupName)
 	}
@@ -64,21 +64,14 @@ func (store *MemoryStore) CreateInstance(instance *pb.Instance) (string, error) 
 	if hasDuplicates(names) {
 		return "", fmt.Errorf("ValueSet SpecNames must be unique within an Instance")
 	}
-	// Ensure each ValueSet JsonBlob is set
+	// Ensure each ValueSet JsonBlob is not empty
 	for _, valueSet := range instance.ValueSets {
 		if valueSet.JsonBlob == "" {
-			return "", fmt.Errorf("ValueSet JsonBlob's must be non-empty")
+			return "", fmt.Errorf("ValueSet JsonBlobs must be non-empty")
 		}
 	}
 	store.instances[instance.Name] = instance
 	return instance.Name, nil
-}
-
-func hasDuplicates(names []string) bool {
-	if len(names) == len(uniqueNonEmptyElementsOf(names)) {
-		return false
-	}
-	return true
 }
 
 func (store *MemoryStore) ReadInstance(name string) (*pb.Instance, error) {
@@ -113,6 +106,22 @@ func (store *MemoryStore) UpdateInstance(instance *pb.Instance) (string, error) 
 	// Ensure each ValueSet SpecName is unique
 	if !store.valueSetNamesAreUnique(instance.ValueSets) {
 		return "", fmt.Errorf("ValueSet SpecNames are not unique")
+	}
+	// Ensure referenced SpecGroup exists
+	if !store.specGroupExists(instance.SpecGroupName) {
+		return "", fmt.Errorf("No SpecGroup exists named '%s'", instance.SpecGroupName)
+	}
+	// Ensure each ValueSet SpecName exists in SpecGroup
+	for _, valueSet := range instance.ValueSets {
+		if !store.specExistsInSpecGroup(valueSet.SpecName, instance.SpecGroupName) {
+			return "", fmt.Errorf("SpecGroup '%s' has no Spec named '%s'", instance.SpecGroupName, valueSet.SpecName)
+		}
+	}
+	// Ensure each ValueSet JsonBlob is not empty
+	for _, valueSet := range instance.ValueSets {
+		if valueSet.JsonBlob == "" {
+			return "", fmt.Errorf("ValueSet JsonBlobs must be non-empty")
+		}
 	}
 
 	store.instances[instance.Name] = instance
@@ -152,14 +161,21 @@ func uniqueNonEmptyElementsOf(s []string) []string {
 	uniqueMap := make(map[string]bool, len(s))
 	uniqueSlice := make([]string, len(uniqueMap))
 	for _, element := range s {
-		if len(element) != 0 {
-			if !uniqueMap[element] {
-				uniqueSlice = append(uniqueSlice, element)
-				uniqueMap[element] = true
-			}
+		// if len(element) != 0 {
+		if !uniqueMap[element] {
+			uniqueSlice = append(uniqueSlice, element)
+			uniqueMap[element] = true
 		}
+		// }
 	}
 	return uniqueSlice
+}
+
+func hasDuplicates(names []string) bool {
+	if len(names) == len(uniqueNonEmptyElementsOf(names)) {
+		return false
+	}
+	return true
 }
 
 func (store *MemoryStore) CreateSpecGroup(specGroup *pb.SpecGroup) (string, error) {

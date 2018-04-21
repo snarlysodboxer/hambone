@@ -285,7 +285,7 @@ func TestCreateInstance(t *testing.T) {
 	instance.ValueSets[0].JsonBlob = ""
 	_, err = store.CreateInstance(instance)
 	errorMsg = "Received no error creating Instance with ValueSet with empty JsonBlob"
-	expectMsg = "ValueSet JsonBlob's must be non-empty"
+	expectMsg = "ValueSet JsonBlobs must be non-empty"
 	expectError(err, expectMsg, errorMsg, t)
 	expectInstances(2, store, t)
 }
@@ -402,7 +402,7 @@ func TestUpdateInstance(t *testing.T) {
 	expectMsg := "Instance Name cannot be empty"
 	expectError(err, expectMsg, errorMsg, t)
 
-	// Cannot update Instance with ValueSets with non-unique SpecNames
+	// Cannot update Instance with non-unique ValueSet SpecNames
 	instance.Name = "my-client"
 	instance.ValueSets[0].SpecName = "Service"
 	_, err = store.UpdateInstance(instance)
@@ -411,10 +411,35 @@ func TestUpdateInstance(t *testing.T) {
 	expectError(err, expectMsg, errorMsg, t)
 
 	// Cannot update Instance referencing SpecGroup which doesn't exist
+	instance.ValueSets[0].SpecName = "Deployment"
+	instance.SpecGroupName = "my-product17"
+	_, err = store.UpdateInstance(instance)
+	errorMsg = "Received no error updating a Instance referencing SpecGroup which doesn't exist"
+	expectMsg = "No SpecGroup exists named 'my-product17'"
+	expectError(err, expectMsg, errorMsg, t)
+
 	// Cannot update Instance referencing Specs which don't exist (in existing SpecGroup)
-	// Cannot update Instance with non-unique ValueSet SpecNames
+	instance.SpecGroupName = "my-product"
+	instance.ValueSets[0].SpecName = "NoExistDeployment"
+	_, err = store.UpdateInstance(instance)
+	errorMsg = "Received no error updating a Instance referencing Specs which doesn't exist in SpecGroup"
+	expectMsg = "SpecGroup 'my-product' has no Spec named 'NoExistDeployment'"
+	expectError(err, expectMsg, errorMsg, t)
+
 	// Cannot update Instance with empty SpecName in ValueSet
+	instance.ValueSets[0].SpecName = ""
+	_, err = store.UpdateInstance(instance)
+	errorMsg = "Received no error updating a Instance with an empty ValueSet SpecName"
+	expectMsg = "SpecGroup 'my-product' has no Spec named ''"
+	expectError(err, expectMsg, errorMsg, t)
+
 	// Cannot update Instance with empty JsonBlob in ValueSet
+	instance.ValueSets[0].SpecName = "Deployment"
+	instance.ValueSets[0].JsonBlob = ""
+	_, err = store.UpdateInstance(instance)
+	errorMsg = "Received no error updating a Instance with an empty ValueSet JsonBlob"
+	expectMsg = "ValueSet JsonBlobs must be non-empty"
+	expectError(err, expectMsg, errorMsg, t)
 }
 
 func expectError(err error, expectMsg, errorMsg string, t *testing.T) {
