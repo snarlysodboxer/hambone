@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/golang/protobuf/proto"
 	pb "github.com/snarlysodboxer/hambone/generated"
 	"github.com/snarlysodboxer/hambone/plugins/state/memory"
 	"testing"
@@ -20,6 +21,16 @@ func getSpecGroup(name string) *pb.SpecGroup {
 	specGroup.Name = name
 	specGroup.Specs = specs
 	return specGroup
+}
+
+func getInstance(name string) *pb.Instance {
+	instance := &pb.Instance{
+		Name: "my-client", SpecGroupName: "my-product", ValueSets: []*pb.ValueSet{
+			&pb.ValueSet{"Deployment", `{"Name": "my-client"}`},
+			&pb.ValueSet{"Service", `{"Name": "my-client"}`},
+		},
+	}
+	return instance
 }
 
 func TestCreateSpecGroup(t *testing.T) {
@@ -102,16 +113,45 @@ func TestCreateSpecGroup(t *testing.T) {
 	}
 }
 
+func TestReadSpecGroup(t *testing.T) {
+	store := main.NewStore()
+	sG := getSpecGroup("my-product")
+	name, err := store.CreateSpecGroup(sG)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	// Reads existing SpecGroup
+	sGNew := getSpecGroup("my-product")
+	specGroup, err := store.ReadSpecGroup(name)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	if !proto.Equal(specGroup, sGNew) {
+		t.Errorf("Created and Read objects are not equal, created: '%v', read: '%v'", sGNew, specGroup)
+		t.FailNow()
+	}
+
+	// Errors Reading non-existent SpecGroup
+	specGroup, err = store.ReadSpecGroup("asdf")
+	if err == nil {
+		t.Error("Received no error Reading non-existent SpecGroup")
+		t.FailNow()
+	}
+	msg := "SpecGroup 'asdf' not found"
+	if err.Error() != msg {
+		t.Errorf("Expected a different error, want: \"%s\", got: \"%s\"", msg, err.Error())
+		t.FailNow()
+	}
+}
+
 func TestCreateInstance(t *testing.T) {
 	store := main.NewStore()
 
 	// Cannot create Instance referencing SpecGroup which doesn't exist
-	instance := &pb.Instance{
-		Name: "my-client", SpecGroupName: "my-product", ValueSets: []*pb.ValueSet{
-			&pb.ValueSet{"Deployment", `{"Name": "my-client"}`},
-			&pb.ValueSet{"Service", `{"Name": "my-client"}`},
-		},
-	}
+	instance := getInstance("my-client")
 	_, err := store.CreateInstance(instance)
 	if err == nil {
 		t.Error("Received no error creating Instance referencing non-existent SpecGroup")
@@ -241,6 +281,47 @@ func TestCreateInstance(t *testing.T) {
 		t.FailNow()
 	}
 	msg = "ValueSet JsonBlob's must be non-empty"
+	if err.Error() != msg {
+		t.Errorf("Expected a different error, want: \"%s\", got: \"%s\"", msg, err.Error())
+		t.FailNow()
+	}
+}
+
+func TestReadInstance(t *testing.T) {
+	store := main.NewStore()
+	specGroup := getSpecGroup("my-product")
+	_, err := store.CreateSpecGroup(specGroup)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	i := getInstance("my-client")
+	name, err := store.CreateInstance(i)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	// Reads existing Instance
+	iNew := getInstance("my-client")
+	instance, err := store.ReadInstance(name)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	if !proto.Equal(instance, iNew) {
+		t.Errorf("Created and Read objects are not equal, created: '%v', read: '%v'", iNew, instance)
+		t.FailNow()
+	}
+
+	// Errors Reading non-existent Instance
+	instance, err = store.ReadInstance("asdf")
+	if err == nil {
+		t.Error("Received no error Reading non-existent Instance")
+		t.FailNow()
+	}
+	msg := "Instance 'asdf' not found"
 	if err.Error() != msg {
 		t.Errorf("Expected a different error, want: \"%s\", got: \"%s\"", msg, err.Error())
 		t.FailNow()
