@@ -20,19 +20,19 @@ func (server *specGroupsServer) SetStateStore(stateStore state.Interface) {
 }
 
 // Create adds the given SpecGroup to the list
-func (server *specGroupsServer) Create(ctx context.Context, createSpecGroupRequest *pb.CreateSpecGroupRequest) (*pb.CreateSpecGroupResponse, error) {
-	name, err := server.stateStore.CreateSpecGroup(createSpecGroupRequest.SpecGroup)
+func (server *specGroupsServer) Create(ctx context.Context, specGroup *pb.SpecGroup) (*pb.Name, error) {
+	name, err := server.stateStore.CreateSpecGroup(specGroup)
 	if err != nil {
-		return &pb.CreateSpecGroupResponse{}, err
+		return &pb.Name{}, err
 	}
-	return &pb.CreateSpecGroupResponse{Name: name}, nil
+	return &pb.Name{Name: name}, nil
 }
 
 // Read returns the SpecGroup for the given name
-func (server *specGroupsServer) Read(ctx context.Context, readSpecGroupRequest *pb.ReadSpecGroupRequest) (*pb.ReadSpecGroupResponse, error) {
-	specGroup, err := server.stateStore.ReadSpecGroup(readSpecGroupRequest.Name)
+func (server *specGroupsServer) Read(ctx context.Context, name *pb.Name) (*pb.SpecGroup, error) {
+	specGroup, err := server.stateStore.ReadSpecGroup(name.Name)
 	if err != nil {
-		return &pb.ReadSpecGroupResponse{}, err
+		return &pb.SpecGroup{}, err
 	}
-	return &pb.ReadSpecGroupResponse{SpecGroup: specGroup}, nil
+	return specGroup, nil
 }

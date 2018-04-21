@@ -32,28 +32,23 @@ func (server *instancesServer) SetStateStore(stateStore state.Interface) {
 }
 
 // Create adds the given Instance to the list, and applies it to the Kubernetes cluster
-func (server *instancesServer) Create(ctx context.Context, createInstanceRequest *pb.CreateInstanceRequest) (*pb.CreateInstanceResponse, error) {
-	response := &pb.CreateInstanceResponse{}
-	instance := createInstanceRequest.Instance
+func (server *instancesServer) Create(ctx context.Context, instance *pb.Instance) (*pb.Name, error) {
 	name, err := server.stateStore.CreateInstance(instance)
 	if err != nil {
-		return response, err
+		return &pb.Name{}, err
 	}
 	err = server.k8sEngine.ApplyInstance(instance)
 	if err != nil {
-		return response, err
+		return &pb.Name{}, err
 	}
-	response.Name = name
-	return response, nil
+	return &pb.Name{name}, nil
 }
 
 // Reads reads and returns an Instance for the given name
-func (server *instancesServer) Read(ctx context.Context, readInstanceRequest *pb.ReadInstanceRequest) (*pb.ReadInstanceResponse, error) {
-	response := &pb.ReadInstanceResponse{}
-	instance, err := server.stateStore.ReadInstance(readInstanceRequest.Name)
+func (server *instancesServer) Read(ctx context.Context, name *pb.Name) (*pb.Instance, error) {
+	instance, err := server.stateStore.ReadInstance(name.Name)
 	if err != nil {
-		return response, err
+		return &pb.Instance{}, err
 	}
-	response.Instance = instance
-	return response, nil
+	return instance, nil
 }

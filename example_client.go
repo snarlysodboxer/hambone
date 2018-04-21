@@ -24,9 +24,7 @@ func createSpecGroup(client pb.SpecGroupsClient) (string, error) {
 	specGroup := &pb.SpecGroup{}
 	specGroup.Name = "my-product"
 	specGroup.Specs = specs
-	request := &pb.CreateSpecGroupRequest{}
-	request.SpecGroup = specGroup
-	response, err := client.Create(context.Background(), request)
+	response, err := client.Create(context.Background(), specGroup)
 	if err != nil {
 		return "", err
 	}
@@ -34,18 +32,16 @@ func createSpecGroup(client pb.SpecGroupsClient) (string, error) {
 }
 
 func readSpecGroup(client pb.SpecGroupsClient, name string) (*pb.SpecGroup, error) {
-	request := &pb.ReadSpecGroupRequest{name}
-	specGroup, err := client.Read(context.Background(), request)
+	specGroup, err := client.Read(context.Background(), &pb.Name{name})
 	if err != nil {
 		return &pb.SpecGroup{}, err
 	}
-	return specGroup.SpecGroup, nil
+	return specGroup, nil
 }
 
 func createInstance(client pb.InstancesClient) (string, error) {
 	instance := &pb.Instance{Name: "my-client", SpecGroupName: "my-product", ValueSets: []*pb.ValueSet{&pb.ValueSet{"Deployment", `{"Name": "my-client"}`}}}
-	request := &pb.CreateInstanceRequest{instance}
-	response, err := client.Create(context.Background(), request)
+	response, err := client.Create(context.Background(), instance)
 	if err != nil {
 		return "", err
 	}
@@ -53,12 +49,11 @@ func createInstance(client pb.InstancesClient) (string, error) {
 }
 
 func readInstance(client pb.InstancesClient, name string) (*pb.Instance, error) {
-	request := &pb.ReadInstanceRequest{name}
-	response, err := client.Read(context.Background(), request)
+	response, err := client.Read(context.Background(), &pb.Name{name})
 	if err != nil {
 		return &pb.Instance{}, err
 	}
-	return response.Instance, nil
+	return response, nil
 }
 
 func main() {
