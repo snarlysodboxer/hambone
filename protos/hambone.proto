@@ -21,12 +21,12 @@ service SpecGroups {
             get: "/v1/specgroup"
         };
     }
-    /* rpc Update(SpecGroup) returns (Name) { */
-    /*     option (google.api.http) = { */
-    /*         put: "/v1/specgroup/{name}" */
-    /*         body: "*" */
-    /*     }; */
-    /* } */
+    rpc Update(SpecGroup) returns (Name) {
+        option (google.api.http) = {
+            put: "/v1/specgroup/{name}"
+            body: "*"
+        };
+    }
     /* rpc Delete(Name) returns (Name) { */
     /*     option (google.api.http) = { */
     /*         delete: "/v1/specgroup/{name}" */
@@ -71,6 +71,12 @@ service Instances {
     rpc List(Empty) returns (StringMap) {
         option (google.api.http) = {
             get: "/v1/instance"
+        };
+    }
+    rpc Update(Instance) returns (Name) {
+        option (google.api.http) = {
+            put: "/v1/instance/{name}"
+            body: "*"
         };
     }
     // TODO

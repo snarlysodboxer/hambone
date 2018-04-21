@@ -47,6 +47,20 @@ func listSpecGroups(client pb.SpecGroupsClient) (*pb.StringList, error) {
 	return response, nil
 }
 
+func updateSpecGroup(client pb.SpecGroupsClient) (string, error) {
+	spec := &pb.Spec{Name: "Deployment", Template: `new text template {{.Asdf}}`}
+	specs := []*pb.Spec{}
+	specs = append(specs, spec)
+	specGroup := &pb.SpecGroup{}
+	specGroup.Name = "my-product"
+	specGroup.Specs = specs
+	response, err := client.Update(context.Background(), specGroup)
+	if err != nil {
+		return "", err
+	}
+	return response.GetName(), nil
+}
+
 func createInstance(client pb.InstancesClient) (string, error) {
 	instance := &pb.Instance{Name: "my-client", SpecGroupName: "my-product", ValueSets: []*pb.ValueSet{&pb.ValueSet{"Deployment", `{"Name": "my-client"}`}}}
 	response, err := client.Create(context.Background(), instance)
@@ -70,6 +84,15 @@ func listInstances(client pb.InstancesClient) (*pb.StringMap, error) {
 		return &pb.StringMap{}, err
 	}
 	return response, nil
+}
+
+func updateInstance(client pb.InstancesClient) (string, error) {
+	instance := &pb.Instance{Name: "my-client", SpecGroupName: "my-product", ValueSets: []*pb.ValueSet{&pb.ValueSet{"Deployment", `{"Name": "new-my-client"}`}}}
+	response, err := client.Update(context.Background(), instance)
+	if err != nil {
+		return "", err
+	}
+	return response.GetName(), nil
 }
 
 func main() {
@@ -103,6 +126,12 @@ func main() {
 			panic(err)
 		}
 		fmt.Printf("Read SpecGroups: '%v'\n", specGroups)
+	case "updateSpecGroup":
+		name, err := updateSpecGroup(specGroupsClient)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Updated SpecGroup '%s'\n", name)
 	case "createInstance":
 		name, err := createInstance(instancesClient)
 		if err != nil {
@@ -121,6 +150,12 @@ func main() {
 			panic(err)
 		}
 		fmt.Printf("Read Instances: '%v'\n", instances)
+	case "updateInstance":
+		name, err := updateInstance(instancesClient)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Updated Instance '%s'\n", name)
 	default:
 		fmt.Println("Unrecognized action")
 	}
