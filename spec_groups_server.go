@@ -36,3 +36,12 @@ func (server *specGroupsServer) Read(ctx context.Context, name *pb.Name) (*pb.Sp
 	}
 	return specGroup, nil
 }
+
+// List returns a list of the Instances' Names
+func (server *specGroupsServer) List(ctx context.Context, _ *pb.Empty) (*pb.StringList, error) {
+	list, err := server.stateStore.ListSpecGroups()
+	if err != nil {
+		return &pb.StringList{}, err
+	}
+	return &pb.StringList{list}, nil
+}

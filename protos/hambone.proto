@@ -16,11 +16,11 @@ service SpecGroups {
             get: "/v1/specgroup/{name}"
         };
     }
-    /* rpc List(Empty) returns (StringList) { */
-    /*     option (google.api.http) = { */
-    /*         get: "/v1/specgroup" */
-    /*     }; */
-    /* } */
+    rpc List(Empty) returns (StringList) {
+        option (google.api.http) = {
+            get: "/v1/specgroup"
+        };
+    }
     /* rpc Update(SpecGroup) returns (Name) { */
     /*     option (google.api.http) = { */
     /*         put: "/v1/specgroup/{name}" */
@@ -68,6 +68,11 @@ service Instances {
             get: "/v1/instance/{name}"
         };
     }
+    rpc List(Empty) returns (StringMap) {
+        option (google.api.http) = {
+            get: "/v1/instance"
+        };
+    }
     // TODO
     // rpc Render(Instance) returns (StringList) {
     //     option (google.api.http) = {
@@ -90,5 +95,9 @@ message Instance {
 message ValueSet {
     string spec_name = 1;
     string json_blob = 2;
+}
+
+message StringMap {
+    map<string, string> list = 1;
 }
 

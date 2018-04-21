@@ -39,6 +39,14 @@ func readSpecGroup(client pb.SpecGroupsClient, name string) (*pb.SpecGroup, erro
 	return specGroup, nil
 }
 
+func listSpecGroups(client pb.SpecGroupsClient) (*pb.StringList, error) {
+	response, err := client.List(context.Background(), &pb.Empty{})
+	if err != nil {
+		return &pb.StringList{}, err
+	}
+	return response, nil
+}
+
 func createInstance(client pb.InstancesClient) (string, error) {
 	instance := &pb.Instance{Name: "my-client", SpecGroupName: "my-product", ValueSets: []*pb.ValueSet{&pb.ValueSet{"Deployment", `{"Name": "my-client"}`}}}
 	response, err := client.Create(context.Background(), instance)
@@ -52,6 +60,14 @@ func readInstance(client pb.InstancesClient, name string) (*pb.Instance, error) 
 	response, err := client.Read(context.Background(), &pb.Name{name})
 	if err != nil {
 		return &pb.Instance{}, err
+	}
+	return response, nil
+}
+
+func listInstances(client pb.InstancesClient) (*pb.StringMap, error) {
+	response, err := client.List(context.Background(), &pb.Empty{})
+	if err != nil {
+		return &pb.StringMap{}, err
 	}
 	return response, nil
 }
@@ -81,6 +97,12 @@ func main() {
 			panic(err)
 		}
 		fmt.Printf("Read SpecGroup: '%v'\n", specGroup)
+	case "listSpecGroups":
+		specGroups, err := listSpecGroups(specGroupsClient)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Read SpecGroups: '%v'\n", specGroups)
 	case "createInstance":
 		name, err := createInstance(instancesClient)
 		if err != nil {
@@ -93,6 +115,12 @@ func main() {
 			panic(err)
 		}
 		fmt.Printf("Read Instance: '%v'\n", instance)
+	case "listInstances":
+		instances, err := listInstances(instancesClient)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Read Instances: '%v'\n", instances)
 	default:
 		fmt.Println("Unrecognized action")
 	}
