@@ -213,9 +213,48 @@ func TestUpdateSpecGroup(t *testing.T) {
 	expectError(err, expectMsg, errorMsg, t)
 }
 
-// TODO
 func TestDeleteSpecGroup(t *testing.T) {
+	store := main.NewStore()
+	specGroup := getSpecGroup("my-product")
+	name, err := store.CreateSpecGroup(specGroup)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	// Can delete SpecGroup
+	_, err = store.DeleteSpecGroup(name)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	_, err = store.ReadSpecGroup(name)
+	errorMsg := "Received no error trying to Read a Deleted SpecGroup"
+	expectMsg := "SpecGroup 'my-product' not found"
+	expectError(err, expectMsg, errorMsg, t)
+
+	// Errors when Deleting a non-existent SpecGroup
+	_, err = store.DeleteSpecGroup(name)
+	errorMsg = "Received no error trying to Delete a non-existent SpecGroup"
+	expectMsg = "SpecGroup 'my-product' doesn't exist"
+	expectError(err, expectMsg, errorMsg, t)
+
 	// Cannot delete SpecGroup which has linked Instances
+	_, err = store.CreateSpecGroup(specGroup)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	instance := getInstance("my-client")
+	_, err = store.CreateInstance(instance)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	_, err = store.DeleteSpecGroup(name)
+	errorMsg = "Received no error trying to Delete a SpecGroup with linked Instances"
+	expectMsg = "SpecGroup 'my-product' has linked instances, cannot be deleted"
+	expectError(err, expectMsg, errorMsg, t)
 }
 
 //////// Instances
@@ -460,6 +499,45 @@ func TestUpdateInstance(t *testing.T) {
 	_, err = store.UpdateInstance(instance)
 	errorMsg = "Received no error updating a Instance with an empty ValueSet JsonBlob"
 	expectMsg = "ValueSet JsonBlobs must be non-empty"
+	expectError(err, expectMsg, errorMsg, t)
+}
+
+func TestDeleteInstance(t *testing.T) {
+	store := main.NewStore()
+	specGroup := getSpecGroup("my-product")
+	_, err := store.CreateSpecGroup(specGroup)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	instance := getInstance("my-client")
+	name, err := store.CreateInstance(instance)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	// Cannot delete Instance with empty Name
+	_, err = store.DeleteInstance("")
+	errorMsg := "Received no error trying to Delete an Instance with an empty Name"
+	expectMsg := "Instance Name cannot be empty"
+	expectError(err, expectMsg, errorMsg, t)
+
+	// Can delete Instance
+	_, err = store.DeleteInstance(name)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	_, err = store.ReadInstance(name)
+	errorMsg = "Received no error trying to Read a Deleted Instance"
+	expectMsg = "Instance 'my-client' not found"
+	expectError(err, expectMsg, errorMsg, t)
+
+	// Cannot Delete a non-existent Instance
+	_, err = store.DeleteInstance(name)
+	errorMsg = "Received no error trying to Delete a non-existent Instance"
+	expectMsg = "Instance 'my-client' doesn't exist"
 	expectError(err, expectMsg, errorMsg, t)
 }
 

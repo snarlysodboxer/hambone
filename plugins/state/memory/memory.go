@@ -25,16 +25,11 @@ func NewStore() *MemoryStore {
 	return &MemoryStore{make(map[string]*pb.SpecGroup), make(map[string]*pb.Instance)}
 }
 
-func (store *MemoryStore) instanceNameIsUnique(name string) bool {
-	names := []string{}
-	for instanceName, _ := range store.instances {
-		names = append(names, instanceName)
+func (store *MemoryStore) instanceExists(name string) bool {
+	if _, ok := store.instances[name]; ok {
+		return true
 	}
-	names = append(names, name)
-	if hasDuplicates(names) {
-		return false
-	}
-	return true
+	return false
 }
 
 func (store *MemoryStore) CreateInstance(instance *pb.Instance) (string, error) {
@@ -43,25 +38,20 @@ func (store *MemoryStore) CreateInstance(instance *pb.Instance) (string, error) 
 		return "", fmt.Errorf("Instance Name cannot be empty")
 	}
 	// Ensure Instance Name doesn't already exist
-	if !store.instanceNameIsUnique(instance.Name) {
+	if store.instanceExists(instance.Name) {
 		return "", fmt.Errorf("An Instance named '%s' already exists", instance.Name)
 	}
 	// Ensure referenced SpecGroup Name exists
 	if !store.specGroupExists(instance.SpecGroupName) {
 		return "", fmt.Errorf("No SpecGroup exists named '%s'", instance.SpecGroupName)
 	}
-	// Ensure each ValueSet SpecName exists
-	for _, valueSet := range instance.ValueSets {
-		if !store.specExistsInSpecGroup(valueSet.SpecName, instance.SpecGroupName) {
-			return "", fmt.Errorf("SpecGroup '%s' has no Spec named '%s'", instance.SpecGroupName, valueSet.SpecName)
-		}
+	// Ensure each ValueSet SpecName exists in the referenced SpecGroup
+	name, ok := store.valueSetSpecNamesExistInSpecGroup(instance)
+	if !ok {
+		return "", fmt.Errorf("SpecGroup '%s' has no Spec named '%s'", instance.SpecGroupName, name)
 	}
 	// Ensure each ValueSet SpecName is unique
-	names := []string{}
-	for _, valueSet := range instance.ValueSets {
-		names = append(names, valueSet.SpecName)
-	}
-	if hasDuplicates(names) {
+	if !store.valueSetNamesAreUnique(instance.ValueSets) {
 		return "", fmt.Errorf("ValueSet SpecNames must be unique within an Instance")
 	}
 	// Ensure each ValueSet JsonBlob is not empty
@@ -111,11 +101,10 @@ func (store *MemoryStore) UpdateInstance(instance *pb.Instance) (string, error) 
 	if !store.specGroupExists(instance.SpecGroupName) {
 		return "", fmt.Errorf("No SpecGroup exists named '%s'", instance.SpecGroupName)
 	}
-	// Ensure each ValueSet SpecName exists in SpecGroup
-	for _, valueSet := range instance.ValueSets {
-		if !store.specExistsInSpecGroup(valueSet.SpecName, instance.SpecGroupName) {
-			return "", fmt.Errorf("SpecGroup '%s' has no Spec named '%s'", instance.SpecGroupName, valueSet.SpecName)
-		}
+	// Ensure each ValueSet SpecName exists in the referenced SpecGroup
+	name, ok := store.valueSetSpecNamesExistInSpecGroup(instance)
+	if !ok {
+		return "", fmt.Errorf("SpecGroup '%s' has no Spec named '%s'", instance.SpecGroupName, name)
 	}
 	// Ensure each ValueSet JsonBlob is not empty
 	for _, valueSet := range instance.ValueSets {
@@ -123,9 +112,21 @@ func (store *MemoryStore) UpdateInstance(instance *pb.Instance) (string, error) 
 			return "", fmt.Errorf("ValueSet JsonBlobs must be non-empty")
 		}
 	}
-
 	store.instances[instance.Name] = instance
 	return instance.Name, nil
+}
+
+func (store *MemoryStore) DeleteInstance(name string) (string, error) {
+	// Ensure Name is not empty
+	if name == "" {
+		return "", fmt.Errorf("Instance Name cannot be empty")
+	}
+	// Ensure Instance exists
+	if !store.instanceExists(name) {
+		return "", fmt.Errorf("Instance '%s' doesn't exist", name)
+	}
+	delete(store.instances, name)
+	return name, nil
 }
 
 func (store *MemoryStore) specGroupNameIsUnique(name string) bool {
@@ -211,6 +212,14 @@ func (store *MemoryStore) ReadSpecGroup(name string) (*pb.SpecGroup, error) {
 	return specGroup, nil
 }
 
+func (store *MemoryStore) ListSpecGroups() ([]string, error) {
+	names := []string{}
+	for name, _ := range store.specGroups {
+		names = append(names, name)
+	}
+	return names, nil
+}
+
 func (store *MemoryStore) UpdateSpecGroup(specGroup *pb.SpecGroup) (string, error) {
 	// Ensure Name is not empty
 	if specGroup.Name == "" {
@@ -225,12 +234,21 @@ func (store *MemoryStore) UpdateSpecGroup(specGroup *pb.SpecGroup) (string, erro
 	return specGroup.Name, nil
 }
 
-func (store *MemoryStore) ListSpecGroups() ([]string, error) {
-	names := []string{}
-	for name, _ := range store.specGroups {
-		names = append(names, name)
+func (store *MemoryStore) DeleteSpecGroup(name string) (string, error) {
+	// Ensure Name is not empty
+	if name == "" {
+		return "", fmt.Errorf("SpecGroup Name cannot be empty")
 	}
-	return names, nil
+	// Ensure SpecGroup exists
+	if !store.specGroupExists(name) {
+		return "", fmt.Errorf("SpecGroup '%s' doesn't exist", name)
+	}
+	// Ensure SpecGroup has no linked instances
+	if store.specGroupHasLinkedInstances(name) {
+		return "", fmt.Errorf("SpecGroup '%s' has linked instances, cannot be deleted", name)
+	}
+	delete(store.specGroups, name)
+	return name, nil
 }
 
 func (store *MemoryStore) specGroupExists(name string) bool {
@@ -242,15 +260,37 @@ func (store *MemoryStore) specGroupExists(name string) bool {
 	return false
 }
 
-func (store *MemoryStore) specExistsInSpecGroup(specName, specGroupName string) bool {
-	for sGName, specGroup := range store.specGroups {
-		if sGName == specGroupName {
-			for _, spec := range specGroup.Specs {
-				if spec.Name == specName {
-					return true
-				}
-			}
+func (store *MemoryStore) specGroupHasLinkedInstances(name string) bool {
+	for _, instance := range store.instances {
+		if instance.SpecGroupName == name {
+			return true
 		}
 	}
 	return false
+}
+
+func (store *MemoryStore) valueSetSpecNamesExistInSpecGroup(instance *pb.Instance) (string, bool) {
+	name := ""
+	for sGName, specGroup := range store.specGroups {
+		if sGName == instance.SpecGroupName {
+			finds := []string{}
+			for _, valueSet := range instance.ValueSets {
+				found := false
+				for _, spec := range specGroup.Specs {
+					if spec.Name == valueSet.SpecName {
+						found = true
+					}
+				}
+				if found {
+					finds = append(finds, valueSet.SpecName)
+				} else {
+					name = valueSet.SpecName
+				}
+			}
+			if len(finds) == len(instance.ValueSets) {
+				return "", true
+			}
+		}
+	}
+	return name, false
 }
