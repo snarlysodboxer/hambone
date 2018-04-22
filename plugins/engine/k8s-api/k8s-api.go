@@ -28,3 +28,16 @@ func (engine *K8sAPIEngine) ApplyInstance(instance *pb.Instance) error {
 	}
 	return nil
 }
+
+// Delete renders and deletes
+func (engine *K8sAPIEngine) DeleteInstance(instance *pb.Instance) error {
+	rendereds, err := engine.renderer.Render(instance)
+	if err != nil {
+		return err
+	}
+	// TODO Actually delete here
+	for _, rendered := range rendereds {
+		fmt.Printf("Deleting the following spec:\n%s\n", rendered)
+	}
+	return nil
+}

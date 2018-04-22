@@ -54,3 +54,12 @@ func (server *specGroupsServer) Update(ctx context.Context, specGroup *pb.SpecGr
 	}
 	return &pb.Name{Name: name}, nil
 }
+
+// Delete deletes the SpecGroup from the StateStore for the given name
+func (server *specGroupsServer) Delete(ctx context.Context, name *pb.Name) (*pb.Name, error) {
+	returnedName, err := server.stateStore.DeleteSpecGroup(name.Name)
+	if err != nil {
+		return &pb.Name{}, err
+	}
+	return &pb.Name{returnedName}, nil
+}

@@ -74,3 +74,20 @@ func (server *instancesServer) Update(ctx context.Context, instance *pb.Instance
 	}
 	return &pb.Name{name}, nil
 }
+
+// Delete deletes an Instance from the Kubernetes cluster and the StateStore for the given name
+func (server *instancesServer) Delete(ctx context.Context, name *pb.Name) (*pb.Name, error) {
+	instance, err := server.stateStore.ReadInstance(name.Name)
+	if err != nil {
+		return &pb.Name{}, err
+	}
+	err = server.k8sEngine.DeleteInstance(instance)
+	if err != nil {
+		return &pb.Name{}, err
+	}
+	returnedName, err := server.stateStore.DeleteInstance(name.Name)
+	if err != nil {
+		return &pb.Name{}, err
+	}
+	return &pb.Name{returnedName}, nil
+}

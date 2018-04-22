@@ -61,6 +61,14 @@ func updateSpecGroup(client pb.SpecGroupsClient) (string, error) {
 	return response.GetName(), nil
 }
 
+func deleteSpecGroup(client pb.SpecGroupsClient, name string) (string, error) {
+	returnedName, err := client.Delete(context.Background(), &pb.Name{name})
+	if err != nil {
+		return "", err
+	}
+	return returnedName.GetName(), nil
+}
+
 func createInstance(client pb.InstancesClient) (string, error) {
 	instance := &pb.Instance{Name: "my-client", SpecGroupName: "my-product", ValueSets: []*pb.ValueSet{&pb.ValueSet{"Deployment", `{"Name": "my-client"}`}}}
 	response, err := client.Create(context.Background(), instance)
@@ -89,6 +97,14 @@ func listInstances(client pb.InstancesClient) (*pb.StringMap, error) {
 func updateInstance(client pb.InstancesClient) (string, error) {
 	instance := &pb.Instance{Name: "my-client", SpecGroupName: "my-product", ValueSets: []*pb.ValueSet{&pb.ValueSet{"Deployment", `{"Name": "new-my-client"}`}}}
 	response, err := client.Update(context.Background(), instance)
+	if err != nil {
+		return "", err
+	}
+	return response.GetName(), nil
+}
+
+func deleteInstance(client pb.InstancesClient, name string) (string, error) {
+	response, err := client.Delete(context.Background(), &pb.Name{name})
 	if err != nil {
 		return "", err
 	}
@@ -132,6 +148,12 @@ func main() {
 			panic(err)
 		}
 		fmt.Printf("Updated SpecGroup '%s'\n", name)
+	case "deleteSpecGroup":
+		name, err := deleteSpecGroup(specGroupsClient, "my-product")
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Deleted SpecGroup: '%v'\n", name)
 	case "createInstance":
 		name, err := createInstance(instancesClient)
 		if err != nil {
@@ -156,6 +178,12 @@ func main() {
 			panic(err)
 		}
 		fmt.Printf("Updated Instance '%s'\n", name)
+	case "deleteInstance":
+		name, err := deleteInstance(instancesClient, "my-client")
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Deleted Instance: '%v'\n", name)
 	default:
 		fmt.Println("Unrecognized action")
 	}

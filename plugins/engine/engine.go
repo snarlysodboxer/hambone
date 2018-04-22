@@ -8,4 +8,5 @@ import (
 type Interface interface {
 	SetRenderer(render.Interface)
 	ApplyInstance(*pb.Instance) error
+	DeleteInstance(*pb.Instance) error
 }

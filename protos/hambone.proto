@@ -27,12 +27,12 @@ service SpecGroups {
             body: "*"
         };
     }
-    /* rpc Delete(Name) returns (Name) { */
-    /*     option (google.api.http) = { */
-    /*         delete: "/v1/specgroup/{name}" */
-    /*         body: "*" */
-    /*     }; */
-    /* } */
+    rpc Delete(Name) returns (Name) {
+        option (google.api.http) = {
+            delete: "/v1/specgroup/{name}"
+            body: "*"
+        };
+    }
 }
 
 message Empty {}
@@ -76,6 +76,12 @@ service Instances {
     rpc Update(Instance) returns (Name) {
         option (google.api.http) = {
             put: "/v1/instance/{name}"
+            body: "*"
+        };
+    }
+    rpc Delete(Name) returns (Name) {
+        option (google.api.http) = {
+            delete: "/v1/instance/{name}"
             body: "*"
         };
     }
