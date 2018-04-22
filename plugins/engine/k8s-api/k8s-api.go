@@ -41,3 +41,12 @@ func (engine *K8sAPIEngine) DeleteInstance(instance *pb.Instance) error {
 	}
 	return nil
 }
+
+// Status returns status information
+// func (engine *K8sAPIEngine) StatusInstance(instance *pb.Instance) (*pb.StatusMessage, error) {
+//     // TODO Actually get status here
+//     for _, rendered := range rendereds {
+//         fmt.Printf("Status:\n%s\n", "Fake Status")
+//     }
+//     return nil
+// }

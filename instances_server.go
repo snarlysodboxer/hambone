@@ -92,7 +92,7 @@ func (server *instancesServer) Delete(ctx context.Context, name *pb.Name) (*pb.N
 	return &pb.Name{returnedName}, nil
 }
 
-// Render renders and returns each valueSet in an Instance
+// Render renders and returns each ValueSet in an Instance
 func (server *instancesServer) Render(ctx context.Context, instance *pb.Instance) (*pb.StringList, error) {
 	rendereds, err := server.renderer.Render(instance)
 	if err != nil {
@@ -100,3 +100,12 @@ func (server *instancesServer) Render(ctx context.Context, instance *pb.Instance
 	}
 	return &pb.StringList{rendereds}, nil
 }
+
+// Status returns status from Kubernetes for each ValueSet in an Instance
+// func (server *instancesServer) Status(ctx context.Context, name *pb.Name) (*pb.StatusMessage, error) {
+//     status, err := server.k8sEngine.Status(instance)
+//     if err != nil {
+//         return &pb.StatusMessage{}, err
+//     }
+//     return status, nil
+// }
