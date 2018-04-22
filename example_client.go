@@ -6,6 +6,7 @@ import (
 	pb "github.com/snarlysodboxer/hambone/generated"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"strings"
 )
 
 const (
@@ -111,6 +112,15 @@ func deleteInstance(client pb.InstancesClient, name string) (string, error) {
 	return response.GetName(), nil
 }
 
+func renderInstance(client pb.InstancesClient) ([]string, error) {
+	instance := &pb.Instance{Name: "my-client", SpecGroupName: "my-product", ValueSets: []*pb.ValueSet{&pb.ValueSet{"Deployment", `{"Name": "new-my-client"}`}}}
+	rendereds, err := client.Render(context.Background(), instance)
+	if err != nil {
+		return []string{}, err
+	}
+	return rendereds.GetList(), nil
+}
+
 func main() {
 	flag.Parse()
 
@@ -184,6 +194,12 @@ func main() {
 			panic(err)
 		}
 		fmt.Printf("Deleted Instance: '%v'\n", name)
+	case "renderInstance":
+		rendereds, err := renderInstance(instancesClient)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Rendered Instance Specs: '%s'\n", strings.Join(rendereds, "\n\n---\n\n"))
 	default:
 		fmt.Println("Unrecognized action")
 	}

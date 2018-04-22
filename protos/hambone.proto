@@ -85,12 +85,12 @@ service Instances {
             body: "*"
         };
     }
+    rpc Render(Instance) returns (StringList) {
+        option (google.api.http) = {
+            get: "/v1/instance/render/{name}"
+        };
+    }
     // TODO
-    // rpc Render(Instance) returns (StringList) {
-    //     option (google.api.http) = {
-    //         get: "/v1/instance/render{name}"
-    //     };
-    // }
     // rpc Status(TODO) returns (TODO) {
     //     option (google.api.http) = {
     //         get: "/v1/instance/status/{name}"

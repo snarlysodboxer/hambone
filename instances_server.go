@@ -91,3 +91,12 @@ func (server *instancesServer) Delete(ctx context.Context, name *pb.Name) (*pb.N
 	}
 	return &pb.Name{returnedName}, nil
 }
+
+// Render renders and returns each valueSet in an Instance
+func (server *instancesServer) Render(ctx context.Context, instance *pb.Instance) (*pb.StringList, error) {
+	rendereds, err := server.renderer.Render(instance)
+	if err != nil {
+		return &pb.StringList{}, err
+	}
+	return &pb.StringList{rendereds}, nil
+}
