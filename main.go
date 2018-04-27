@@ -17,8 +17,6 @@ var (
 	stateStorePluginPath = flag.String("state_plugin", "./plugins/state/memory/memory.so", "Path to a state store plugin file")
 	k8sEnginePluginPath  = flag.String("engine_plugin", "./plugins/engine/k8s-api/k8s-api.so", "Path to an engine plugin file")
 	listenAddress        = flag.String("listen_address", "127.0.0.1:50051", "The network address upon which the server should listen")
-	kubeConfigFilePath   = flag.String("kube_config_path", "~/.kube/config", "Path to a Kube Config file (optional, ignored if in_cluster_config is set)")
-	inClusterConfig      = flag.Bool("in_cluster_config", false, "Use in-cluster Config (default: false)")
 )
 
 func getStateStorePlugin(filePath string) state.Interface {
@@ -77,10 +75,7 @@ func main() {
 	k8sEngine := getK8sEnginePlugin(*k8sEnginePluginPath)
 
 	renderer.SetStateStore(stateStore)
-	err := k8sEngine.Init(renderer, *kubeConfigFilePath, *inClusterConfig)
-	if err != nil {
-		panic(err)
-	}
+	k8sEngine.SetRenderer(renderer)
 
 	listener, err := net.Listen("tcp", *listenAddress)
 	if err != nil {

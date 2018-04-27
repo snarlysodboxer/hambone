@@ -10,37 +10,7 @@ import (
 )
 
 const (
-	// template = `this text template for {{.Name}}`
-	// template = `apiVersion: apps/v1
-	template = `apiVersion: extensions/v1beta1
-kind: Deployment
-metadata:
-  name: {{.Name}}
-  namespace: default
-  labels:
-    app: {{.Name}}
-spec:
-  replicas: 1
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 2
-  template:
-    metadata:
-      labels:
-        app: {{.Name}}
-    spec:
-      restartPolicy: Always
-      containers:
-      - name: sleeper
-        image: my-account/my-repo:CHANGEME
-        imagePullPolicy: IfNotPresent
-        command:
-        - sleep
-        args:
-        - '50000'
-`
+	template = `this text template for {{.Name}}`
 )
 
 var (
@@ -79,7 +49,7 @@ func listSpecGroups(client pb.SpecGroupsClient) (*pb.StringList, error) {
 }
 
 func updateSpecGroup(client pb.SpecGroupsClient) (string, error) {
-	spec := &pb.Spec{Name: "Deployment", Template: fmt.Sprintf("\n%s\n", template)}
+	spec := &pb.Spec{Name: "Deployment", Template: `new text template {{.Asdf}}`}
 	specs := []*pb.Spec{}
 	specs = append(specs, spec)
 	specGroup := &pb.SpecGroup{}

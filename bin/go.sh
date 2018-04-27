@@ -7,15 +7,5 @@ fi
 
 set -e
 
-# docker run -it --rm -v $GOPATH:/go --workdir /go/src/github.com/snarlysodboxer/hambone --network host -e CGO_ENABLED=1 -e GOOS=linux --entrypoint go golang:1.10.1 "$@"
-
-docker run -it --rm \
-    -v $GOPATH:/go \
-    -v /Users/davidamick/.kube/config:/config \
-    --workdir /go/src/github.com/snarlysodboxer/hambone \
-    --network host \
-    -e CGO_ENABLED=1 \
-    -e GOOS=linux \
-    --entrypoint go \
-    golang:1.10.1 "$@"
+docker run -it --rm -v $GOPATH:/go --workdir /go/src/github.com/snarlysodboxer/hambone --network host -e CGO_ENABLED=1 -e GOOS=linux --entrypoint go golang:1.10.1 "$@"
 
