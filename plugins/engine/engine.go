@@ -6,7 +6,7 @@ import (
 )
 
 type Interface interface {
-	SetRenderer(render.Interface)
+	Init(render.Interface, string, bool) error
 	ApplyInstance(*pb.Instance) error
 	DeleteInstance(*pb.Instance) error
 	// StatusInstance(*pb.Instance) error
