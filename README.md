@@ -1,21 +1,30 @@
 # hambone
 
-## CRUD differently configured copies of the same Kubernetes specs using Kustomize and Git
+## An API server for CRUDing differently configured copies of the same Kubernetes specs using [Kustomize](https://github.com/kubernetes/kubectl/tree/58f555205b015986f2e487dc88a1481b6de3c5c4/cmd/kustomize) and Git
 
-# Consists of a gRPC server (with grpc-gateway JSON adapter)
+### Design
 
-# The App
+* `hambone` consists of a gRPC server (with grpc-gateway JSON adapter)
+* `hambone` and it's API aim to be as simple and dumb as possible, and expect you to do almost all the validation client-side where you can also build in your custom domain logic, or obtain external information for secrets or disk volume IDs, etc.
+* `hambone` uses `kubectl apply` and `kustomize build` both of which validate YAML, and `kubectl` validates objects. Care is taken to return meaningful errors.
+* `hambone` writes `kustomization.yaml` files in a structured way, and tracks all changes in Git. It rejects any `kustomization.yml` file changes which are rejected by Kubernetes.
+* `hambone` writes arbitrary files at specified paths and tracks all changes in Git. It does not run any files.
 
-* hambone aims to be as simple and dumb as possible, and expect you to do almost all the validation client-side, where you will also build in your custom domain logic. // TODO think about this
+### Dependencies
 
+_It's a purposeful design choice to execute shell commands rather than using the Kubernetes and Git APIs directly. This makes it easy to support most versions of Kubernetes/kubectl and Git, and helps to keep this app simple._
 
+* We use the following external executables
+    * `sh`
+    * `test`
+    * `kubectl`
+    * `git`
+* Typical usage would be to package these executables together in a Docker image along with your Git repository, and then mount in credentials for `kubectl` and `git` when running a container.
 
-## Instances
+### Roadmap
 
-* The API is as simple as possible and does no validation itself, however it uses `kubectl apply` which validates by default, and 
-* It's a simple CRUD app that writes arbitrary files in a structured way, and tracks all changes in git.
-
-
-# Roadmap
-
+* Document better
 * Track logged in users so Git commits can be properly Authored
+* Tests
+* Consider an additional API for CRUDing base configurations
+

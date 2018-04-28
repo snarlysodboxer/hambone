@@ -9,8 +9,7 @@ import (
 )
 
 const (
-	kustomizationYamlOther = `
-namePrefix: my-other-client-
+	kustomizationYamlOther = `namePrefix: my-other-client-
 
 commonLabels:
   client: my-client
@@ -31,8 +30,7 @@ bases:
 patches:
 - ../../versions/3.6.yml
 `
-	kustomizationYaml = `
-namePrefix: my-client-
+	kustomizationYaml = `namePrefix: my-client-
 
 commonLabels:
   client: my-client
