@@ -15,14 +15,26 @@ import (
 
 // TODO periodically check that working tree is clean?
 
-func (server *instancesServer) apply(instance *pb.Instance) (*pb.Instance, error) {
-	instanceDir := fmt.Sprintf(`%s/%s`, server.instancesDir, instance.Name)
+type instance struct {
+	*pb.Instance
+	instanceDir  string
+	instanceFile string
+}
+
+func NewInstance(pbInstance *pb.Instance, instancesDir string) *instance {
+	instanceDir := fmt.Sprintf(`%s/%s`, instancesDir, pbInstance.Name)
 	instanceFile := fmt.Sprintf(`%s/kustomization.yaml`, instanceDir)
+	return &instance{pbInstance, instanceDir, instanceFile}
+}
+
+func (instance *instance) apply() error {
+	instanceDir := instance.instanceDir
+	instanceFile := instance.instanceFile
 
 	// ensure namePrefix in yaml matches pb.Instance.Name
-	err := namePrefixMatches(instance)
+	err := namePrefixMatches(instance.Instance)
 	if err != nil {
-		return instance, err
+		return err
 	}
 
 	// ensure instance file is clean in git
@@ -31,7 +43,7 @@ func (server *instancesServer) apply(instance *pb.Instance) (*pb.Instance, error
 	output, err := exec.Command("git", args...).CombinedOutput()
 	debugExecOutput(output, "git", args...)
 	if err != nil {
-		return instance, errors.New(fmt.Sprintf("There are tracked uncommitted changes for this Instance! This should not happen and could indicate a bug. Fix this manually:\n%s\n", indent(output)))
+		return errors.New(fmt.Sprintf("There are tracked uncommitted changes for this Instance! This should not happen and could indicate a bug. Fix this manually:\n%s\n", indent(output)))
 	}
 	// check for untracked changes
 	test := fmt.Sprintf("git ls-files --exclude-standard --others %s", instanceFile)
@@ -39,44 +51,140 @@ func (server *instancesServer) apply(instance *pb.Instance) (*pb.Instance, error
 	output, err = exec.Command("sh", args...).CombinedOutput()
 	debugExecOutput(output, "sh", args...)
 	if err != nil {
-		return instance, errors.New("There are untracked uncommitted changes for this Instance! This should not happen and could indicate a bug. Fix this manually.")
+		return errors.New("There are untracked uncommitted changes for this Instance! This should not happen and could indicate a bug. Fix this manually.")
 	}
 
 	// git pull
 	output, err = exec.Command("git", "pull").CombinedOutput()
 	debugExecOutput(output, "git", "pull")
 	if err != nil {
-		return instance, newExecError(err, output, "git", []string{"pull"})
+		return newExecError(err, output, "git", []string{"pull"})
 	}
 
 	// mkdir
 	if err := os.MkdirAll(instanceDir, 0755); err != nil {
-		return instance, err
+		return err
 	}
 
 	// write <instancesDir>/<name>/kustomization.yml
 	if err := ioutil.WriteFile(instanceFile, []byte(instance.KustomizationYaml), 0644); err != nil {
-		return instance, err
+		return err
 	}
 	debugf("Wrote `%s` with contents:\n%s\n", instanceFile, indent([]byte(instance.KustomizationYaml)))
 
-	// kustomization build | kubctl apply -f -
+	// kustomize build <instance path> | kubctl apply -f -
+	_, err = instance.pipeKustomizeToKubectl(`apply`, `-f`, `-`)
+	if err != nil {
+		return err
+	}
+
+	// check if there's anything to commit
+	args = []string{`diff`, `--exit-code`, instanceFile}
+	output, err = exec.Command("git", args...).CombinedOutput()
+	debugExecOutput(output, "git", args...)
+	if err == nil {
+		// Nothing to commit
+		if err = instance.loadStatuses(); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// git add
+	args = []string{"add", instanceFile}
+	if _, err := rollbackCommand(instanceDir, instanceFile, "git", args...); err != nil {
+		return err
+	}
+
+	// git commit
+	args = []string{"commit", "-m", fmt.Sprintf(`Automate hambone apply for %s`, instance.Name)}
+	if _, err := rollbackCommand(instanceDir, instanceFile, "git", args...); err != nil {
+		return err
+	}
+
+	// git push
+	if _, err = rollbackCommand(instanceDir, instanceFile, "git", "push"); err != nil {
+		return err
+	}
+
+	// fill in statuses
+	if err = instance.loadStatuses(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type ItemStatuses struct {
+	Items []Item `yaml:"items"`
+}
+
+type Item struct {
+	Kind     string            `yaml:"kind"`
+	Metadata Metadata          `yaml:"metadata"`
+	Labels   map[string]string `yaml:"labels"`
+	Status   ItemStatus        `yaml:"status"`
+}
+
+type Metadata struct {
+	Name      string `yaml:"name"`
+	Namespace string `yaml:"namespace"`
+}
+
+type ItemStatus struct {
+	AvailableReplicas int32 `yaml:"availableReplicas"`
+	ReadyReplicas     int32 `yaml:"readyReplicas"`
+	DesiredReplicas   int32 `yaml:"replicas"`
+	UpdatedReplicas   int32 `yaml:"updatedReplicas"`
+}
+
+func (instance *instance) loadStatuses() error {
+	yml, err := instance.pipeKustomizeToKubectl(`get`, `-o`, `yaml`, `-f`, `-`)
+	if err != nil {
+		return err
+	}
+	items := ItemStatuses{}
+	if err = yaml.Unmarshal([]byte(yml), &items); err != nil {
+		return err
+	}
+	for _, item := range items.Items {
+		switch item.Kind {
+		case "Deployment":
+			deploymentStatus := &pb.DeploymentStatus{}
+			deploymentStatus.Name = item.Metadata.Name
+			deploymentStatus.Desired = item.Status.DesiredReplicas
+			deploymentStatus.Current = item.Status.ReadyReplicas
+			deploymentStatus.Available = item.Status.AvailableReplicas
+			deploymentStatus.UpToDate = item.Status.UpdatedReplicas
+			statusDeployment := &pb.Status_Deployment{deploymentStatus}
+			status := &pb.Status{Item: statusDeployment}
+			instance.Instance.Statuses = append(instance.Instance.Statuses, status)
+		}
+	}
+	return nil
+}
+
+func (instance *instance) pipeKustomizeToKubectl(args ...string) ([]byte, error) {
+	instanceDir := instance.instanceDir
+	instanceFile := instance.instanceFile
+	returnBytes := []byte{}
+
 	kustomizeCmd := exec.Command("kustomize", "build", instanceDir)
 	stdout, err := kustomizeCmd.StdoutPipe()
 	if err != nil {
-		return instance, rollbackError(instanceDir, instanceFile, err)
+		return returnBytes, rollbackAndError(instanceDir, instanceFile, err)
 	}
 	stderr, err := kustomizeCmd.StderrPipe()
 	if err != nil {
-		return instance, rollbackError(instanceDir, instanceFile, err)
+		return returnBytes, rollbackAndError(instanceDir, instanceFile, err)
 	}
 	if err := kustomizeCmd.Start(); err != nil {
-		return instance, rollbackError(instanceDir, instanceFile, err)
+		return returnBytes, rollbackAndError(instanceDir, instanceFile, err)
 	}
-	kubectlCmd := exec.Command(`kubectl`, `apply`, `-f`, `-`)
+	kubectlCmd := exec.Command(`kubectl`, args...)
 	stdin, err := kubectlCmd.StdinPipe()
 	if err != nil {
-		return instance, rollbackError(instanceDir, instanceFile, err)
+		return returnBytes, rollbackAndError(instanceDir, instanceFile, err)
 	}
 	go func() {
 		defer stdin.Close()
@@ -89,53 +197,26 @@ func (server *instancesServer) apply(instance *pb.Instance) (*pb.Instance, error
 	buf.ReadFrom(stderr)
 	if err := kustomizeCmd.Wait(); err != nil {
 		debugExecOutput(buf.Bytes(), "kustomize", `build`, instanceDir)
-		return instance, rollbackError(instanceDir, instanceFile, errors.New(fmt.Sprintf("ERROR running `kustomize build %s`:\n%s%s", instanceDir, strings.TrimSuffix(buf.String(), "\n"), err.Error())))
+		return returnBytes, rollbackAndError(instanceDir, instanceFile, errors.New(fmt.Sprintf("ERROR running `kustomize build %s`:\n%s%s", instanceDir, strings.TrimSuffix(buf.String(), "\n"), err.Error())))
 	}
-	output, err = kubectlCmd.CombinedOutput()
-	debugExecOutput(output, "kubectl", `apply`, `-f`, `-`)
+	output, err := kubectlCmd.CombinedOutput()
+	debugExecOutput(output, "kubectl", args...)
 	if err != nil {
-		return instance, rollbackError(instanceDir, instanceFile, err)
+		return returnBytes, rollbackAndError(instanceDir, instanceFile, err)
 	}
-
-	// check if there's anything to commit
-	args = []string{`diff`, `--exit-code`, instanceFile}
-	output, err = exec.Command("git", args...).CombinedOutput()
-	debugExecOutput(output, "git", args...)
-	if err == nil {
-		// Nothing to commit
-		return instance, nil
-	}
-
-	// git add
-	args = []string{"add", instanceFile}
-	if _, err := rollbackCommand(instanceDir, instanceFile, "git", args...); err != nil {
-		return instance, err
-	}
-
-	// git commit
-	args = []string{"commit", "-m", `Automated commit by hambone`}
-	if _, err := rollbackCommand(instanceDir, instanceFile, "git", args...); err != nil {
-		return instance, err
-	}
-
-	// git push
-	if _, err = rollbackCommand(instanceDir, instanceFile, "git", "push"); err != nil {
-		return instance, err
-	}
-
-	return instance, nil
+	return output, nil
 }
 
 func rollbackCommand(instanceDir, instanceFile, cmd string, args ...string) ([]byte, error) {
 	output, err := exec.Command(cmd, args...).CombinedOutput()
 	debugExecOutput(output, cmd, args...)
 	if err != nil {
-		return output, rollbackError(instanceDir, instanceFile, err)
+		return output, rollbackAndError(instanceDir, instanceFile, err)
 	}
 	return output, nil
 }
 
-func rollbackError(instanceDir, instanceFile string, err error) error {
+func rollbackAndError(instanceDir, instanceFile string, err error) error {
 	rollbackErr := rollback(instanceDir, instanceFile)
 	if rollbackErr != nil {
 		return errors.New(fmt.Sprintf("ERROR rolling back!\n%s\n%s\n", indent([]byte(rollbackErr.Error())), err.Error()))
@@ -191,4 +272,8 @@ func namePrefixMatches(instance *pb.Instance) error {
 		return errors.New(fmt.Sprintf("Instance Name does not match `namePrefix`, got: %s, want: %s", kYaml.NamePrefix, hyphened))
 	}
 	return nil
+}
+
+func indent(output []byte) string {
+	return strings.Replace(string(output), "\n", "\n\t", -1)
 }
