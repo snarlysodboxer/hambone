@@ -1,10 +1,12 @@
 package instances
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	pb "github.com/snarlysodboxer/hambone/generated"
 	"gopkg.in/yaml.v2"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -58,11 +60,41 @@ func (server *instancesServer) apply(instance *pb.Instance) (*pb.Instance, error
 	}
 	debugf("Wrote `%s` with contents:\n%s\n", instanceFile, indent([]byte(instance.KustomizationYaml)))
 
-	// kustomization build | kubctl apply
-	// TODO use exec pipes for this for better error handling
-	args = []string{"-c", fmt.Sprintf(`kustomize build %s | kubectl apply -f -`, instanceDir)}
-	if _, err = rollbackCommand(instanceFile, "sh", args...); err != nil {
-		return instance, err
+	// kustomization build | kubctl apply -f -
+	kustomizeCmd := exec.Command("kustomize", "build", instanceDir)
+	stdout, err := kustomizeCmd.StdoutPipe()
+	if err != nil {
+		return instance, rollbackError(instanceDir, instanceFile, err)
+	}
+	stderr, err := kustomizeCmd.StderrPipe()
+	if err != nil {
+		return instance, rollbackError(instanceDir, instanceFile, err)
+	}
+	if err := kustomizeCmd.Start(); err != nil {
+		return instance, rollbackError(instanceDir, instanceFile, err)
+	}
+	kubectlCmd := exec.Command(`kubectl`, `apply`, `-f`, `-`)
+	stdin, err := kubectlCmd.StdinPipe()
+	if err != nil {
+		return instance, rollbackError(instanceDir, instanceFile, err)
+	}
+	go func() {
+		defer stdin.Close()
+		_, err = io.Copy(stdin, stdout)
+		if err != nil {
+			return // TODO think about this
+		}
+	}()
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(stderr)
+	if err := kustomizeCmd.Wait(); err != nil {
+		debugExecOutput(buf.Bytes(), "kustomize", `build`, instanceDir)
+		return instance, rollbackError(instanceDir, instanceFile, errors.New(fmt.Sprintf("ERROR running `kustomize build %s`:\n%s%s", instanceDir, strings.TrimSuffix(buf.String(), "\n"), err.Error())))
+	}
+	output, err = kubectlCmd.CombinedOutput()
+	debugExecOutput(output, "kubectl", `apply`, `-f`, `-`)
+	if err != nil {
+		return instance, rollbackError(instanceDir, instanceFile, err)
 	}
 
 	// check if there's anything to commit
@@ -76,47 +108,58 @@ func (server *instancesServer) apply(instance *pb.Instance) (*pb.Instance, error
 
 	// git add
 	args = []string{"add", instanceFile}
-	if _, err := rollbackCommand(instanceFile, "git", args...); err != nil {
+	if _, err := rollbackCommand(instanceDir, instanceFile, "git", args...); err != nil {
 		return instance, err
 	}
 
 	// git commit
 	args = []string{"commit", "-m", `Automated commit by hambone`}
-	if _, err := rollbackCommand(instanceFile, "git", args...); err != nil {
+	if _, err := rollbackCommand(instanceDir, instanceFile, "git", args...); err != nil {
 		return instance, err
 	}
 
 	// git push
-	if _, err = rollbackCommand(instanceFile, "git", "push"); err != nil {
+	if _, err = rollbackCommand(instanceDir, instanceFile, "git", "push"); err != nil {
 		return instance, err
 	}
 
 	return instance, nil
 }
 
-func rollbackCommand(instanceFile, cmd string, args ...string) ([]byte, error) {
+func rollbackCommand(instanceDir, instanceFile, cmd string, args ...string) ([]byte, error) {
 	output, err := exec.Command(cmd, args...).CombinedOutput()
 	debugExecOutput(output, cmd, args...)
 	if err != nil {
-		if rollbackErr := rollback(instanceFile); rollbackErr != nil {
-			return output, rollbackErr
-		}
-		return output, newExecError(err, output, cmd, args)
+		return output, rollbackError(instanceDir, instanceFile, err)
 	}
 	return output, nil
 }
 
-func rollback(instanceFile string) error {
-	args := []string{"ls-files", "--error-unmatch", instanceFile}
-	if _, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+func rollbackError(instanceDir, instanceFile string, err error) error {
+	rollbackErr := rollback(instanceDir, instanceFile)
+	if rollbackErr != nil {
+		return errors.New(fmt.Sprintf("ERROR rolling back!\n%s\n%s\n", indent([]byte(rollbackErr.Error())), err.Error()))
+	}
+	return err
+}
+
+func rollback(instanceDir, instanceFile string) error {
+	if _, err := exec.Command("git", "ls-files", "--error-unmatch", instanceFile).CombinedOutput(); err != nil {
 		// File is not tracked
-		args = []string{"-f", instanceFile}
-		if output, err := exec.Command("rm", args...).CombinedOutput(); err != nil {
-			return newExecError(err, output, "rm", args)
+		if _, err := exec.Command("git", "ls-files", "--error-unmatch", instanceDir).CombinedOutput(); err != nil {
+			// Dir is not tracked
+			if output, err := exec.Command("rm", "-rf", instanceDir).CombinedOutput(); err != nil {
+				return newExecError(err, output, "rm", []string{fmt.Sprintf("-rf %s", instanceDir)})
+			}
+		} else {
+			// Dir is tracked
+			if output, err := exec.Command("rm", "-f", instanceFile).CombinedOutput(); err != nil {
+				return newExecError(err, output, "rm", []string{fmt.Sprintf("-rf %s", instanceDir)})
+			}
 		}
 	} else {
 		// File is tracked
-		args = []string{"reset", "HEAD", instanceFile}
+		args := []string{"reset", "HEAD", instanceFile}
 		if output, err := exec.Command("git", args...).CombinedOutput(); err != nil {
 			return newExecError(err, output, "git", args)
 		}
