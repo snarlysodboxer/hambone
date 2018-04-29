@@ -13,7 +13,7 @@ service Instances {
     }
     rpc Get(GetOptions) returns (InstanceList) {
         option (google.api.http) = {
-            get: "/v1/instance/{start}/{stop}/{exclude_statuses}"
+            get: "/v1/instance/{name}/{start}/{stop}/{exclude_statuses}"
         };
     }
     /* rpc Delete(Name) returns (Name) { */
@@ -33,6 +33,7 @@ message Instance {
     string name = 1;
     string kustomization_yaml = 2;
     repeated Status statuses = 3;
+    string statuses_error_message = 4;
 }
 
 message InstanceList {

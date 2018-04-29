@@ -93,10 +93,7 @@ func (request *getRequest) Run() error {
 	if !request.GetOptions.GetExcludeStatuses() {
 		for _, pbInstance := range list.Instances {
 			instance := NewInstance(pbInstance, request.instancesDir)
-			if err = instance.loadStatuses(); err != nil {
-				// TODO think about failing gracefully here
-				return err
-			}
+			_ = instance.loadStatuses()
 		}
 	}
 	request.InstanceList = list
@@ -128,7 +125,7 @@ func (instance *instance) apply() error {
 
 	// ensure instance file is clean in git
 	// check for tracked changes
-	args := []string{`diff`, `--exit-code`, instanceFile}
+	args := []string{`diff`, `--exit-code`, `--`, instanceFile}
 	output, err := exec.Command("git", args...).CombinedOutput()
 	debugExecOutput(output, "git", args...)
 	if err != nil {
@@ -171,35 +168,33 @@ func (instance *instance) apply() error {
 	args = []string{`diff`, `--exit-code`, instanceFile}
 	output, err = exec.Command("git", args...).CombinedOutput()
 	debugExecOutput(output, "git", args...)
-	if err == nil {
-		// Nothing to commit
-		if err = instance.loadStatuses(); err != nil {
+	test = fmt.Sprintf("git ls-files --exclude-standard --others %s", instanceFile)
+	args = []string{`-c`, fmt.Sprintf("test -z $(%s)", test)}
+	output, untrackedErr := exec.Command("sh", args...).CombinedOutput()
+	debugExecOutput(output, "sh", args...)
+	if err == nil || untrackedErr != nil {
+		// Changes to commit
+
+		// git add
+		args = []string{"add", instanceFile}
+		if _, err := rollbackCommand(instanceDir, instanceFile, "git", args...); err != nil {
 			return err
 		}
-		return nil
-	}
 
-	// git add
-	args = []string{"add", instanceFile}
-	if _, err := rollbackCommand(instanceDir, instanceFile, "git", args...); err != nil {
-		return err
-	}
+		// git commit
+		args = []string{"commit", "-m", fmt.Sprintf(`Automate hambone apply for %s`, instance.Name)}
+		if _, err := rollbackCommand(instanceDir, instanceFile, "git", args...); err != nil {
+			return err
+		}
 
-	// git commit
-	args = []string{"commit", "-m", fmt.Sprintf(`Automate hambone apply for %s`, instance.Name)}
-	if _, err := rollbackCommand(instanceDir, instanceFile, "git", args...); err != nil {
-		return err
-	}
-
-	// git push
-	if _, err = rollbackCommand(instanceDir, instanceFile, "git", "push"); err != nil {
-		return err
+		// git push
+		if _, err = rollbackCommand(instanceDir, instanceFile, "git", "push"); err != nil {
+			return err
+		}
 	}
 
 	// fill in statuses
-	if err = instance.loadStatuses(); err != nil {
-		return err
-	}
+	_ = instance.loadStatuses()
 
 	return nil
 }
@@ -228,12 +223,14 @@ type ItemStatus struct {
 }
 
 func (instance *instance) loadStatuses() error {
-	yml, err := instance.pipeKustomizeToKubectl(`get`, `-o`, `yaml`, `-f`, `-`)
+	output, err := instance.pipeKustomizeToKubectl(`get`, `-o`, `yaml`, `-f`, `-`)
 	if err != nil {
+		instance.Instance.StatusesErrorMessage = string(output)
 		return err
 	}
 	items := ItemStatuses{}
-	if err = yaml.Unmarshal([]byte(yml), &items); err != nil {
+	if err = yaml.Unmarshal([]byte(output), &items); err != nil {
+		instance.Instance.StatusesErrorMessage = string(output)
 		return err
 	}
 	for _, item := range items.Items {
@@ -257,24 +254,24 @@ func (instance *instance) loadStatuses() error {
 func (instance *instance) pipeKustomizeToKubectl(args ...string) ([]byte, error) {
 	instanceDir := instance.instanceDir
 	instanceFile := instance.instanceFile
-	returnBytes := []byte{}
+	emptybytes := []byte{}
 
 	kustomizeCmd := exec.Command("kustomize", "build", instanceDir)
 	stdout, err := kustomizeCmd.StdoutPipe()
 	if err != nil {
-		return returnBytes, rollbackAndError(instanceDir, instanceFile, err)
+		return emptybytes, rollbackAndError(instanceDir, instanceFile, err)
 	}
 	stderr, err := kustomizeCmd.StderrPipe()
 	if err != nil {
-		return returnBytes, rollbackAndError(instanceDir, instanceFile, err)
+		return emptybytes, rollbackAndError(instanceDir, instanceFile, err)
 	}
 	if err := kustomizeCmd.Start(); err != nil {
-		return returnBytes, rollbackAndError(instanceDir, instanceFile, err)
+		return emptybytes, rollbackAndError(instanceDir, instanceFile, err)
 	}
 	kubectlCmd := exec.Command(`kubectl`, args...)
 	stdin, err := kubectlCmd.StdinPipe()
 	if err != nil {
-		return returnBytes, rollbackAndError(instanceDir, instanceFile, err)
+		return emptybytes, rollbackAndError(instanceDir, instanceFile, err)
 	}
 	go func() {
 		defer stdin.Close()
@@ -287,12 +284,12 @@ func (instance *instance) pipeKustomizeToKubectl(args ...string) ([]byte, error)
 	buf.ReadFrom(stderr)
 	if err := kustomizeCmd.Wait(); err != nil {
 		debugExecOutput(buf.Bytes(), "kustomize", `build`, instanceDir)
-		return returnBytes, rollbackAndError(instanceDir, instanceFile, errors.New(fmt.Sprintf("ERROR running `kustomize build %s`:\n%s%s", instanceDir, strings.TrimSuffix(buf.String(), "\n"), err.Error())))
+		return emptybytes, rollbackAndError(instanceDir, instanceFile, errors.New(fmt.Sprintf("ERROR running `kustomize build %s`:\n%s%s", instanceDir, strings.TrimSuffix(buf.String(), "\n"), err.Error())))
 	}
 	output, err := kubectlCmd.CombinedOutput()
 	debugExecOutput(output, "kubectl", args...)
 	if err != nil {
-		return returnBytes, rollbackAndError(instanceDir, instanceFile, err)
+		return output, rollbackAndError(instanceDir, instanceFile, err)
 	}
 	return output, nil
 }
