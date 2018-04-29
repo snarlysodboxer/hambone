@@ -12,7 +12,7 @@ const (
 	kustomizationYamlOther = `namePrefix: my-other-client-
 
 commonLabels:
-  client: my-client
+  client: my-other-client
   myProductVersion: '3.6'
 
 commonAnnotations:

@@ -172,7 +172,7 @@ func (instance *instance) apply() error {
 	args = []string{`-c`, fmt.Sprintf("test -z $(%s)", test)}
 	output, untrackedErr := exec.Command("sh", args...).CombinedOutput()
 	debugExecOutput(output, "sh", args...)
-	if err == nil || untrackedErr != nil {
+	if err != nil || untrackedErr != nil {
 		// Changes to commit
 
 		// git add
