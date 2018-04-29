@@ -68,6 +68,24 @@ func applyInstance(client pb.InstancesClient) (*pb.Instance, error) {
 	return instance, nil
 }
 
+func getInstance(client pb.InstancesClient) (*pb.InstanceList, error) {
+	getOptions := &pb.GetOptions{Name: "my-client"}
+	instanceList, err := client.Get(context.Background(), getOptions)
+	if err != nil {
+		return instanceList, err
+	}
+	return instanceList, nil
+}
+
+func getInstances(client pb.InstancesClient) (*pb.InstanceList, error) {
+	getOptions := &pb.GetOptions{Start: 1, Stop: 1, ExcludeStatuses: true}
+	instanceList, err := client.Get(context.Background(), getOptions)
+	if err != nil {
+		return instanceList, err
+	}
+	return instanceList, nil
+}
+
 func main() {
 	flag.Parse()
 
@@ -86,6 +104,18 @@ func main() {
 			panic(err)
 		}
 		fmt.Printf("Applied Instance '%v'\n", instance)
+	case "getInstance":
+		instanceList, err := getInstance(instancesClient)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Got InstanceList '%v'\n", instanceList)
+	case "getInstances":
+		instanceList, err := getInstances(instancesClient)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Got InstanceList '%v'\n", instanceList)
 	default:
 		fmt.Println("Unrecognized action")
 	}

@@ -9,6 +9,7 @@
 * `hambone` uses `kubectl apply` and `kustomize build` both of which validate YAML, and `kubectl` validates objects. Care is taken to return meaningful errors.
 * `hambone` writes `kustomization.yaml` files in a structured way, and tracks all changes in Git. It rejects any `kustomization.yml` file changes which are rejected by Kubernetes.
 * `hambone` writes arbitrary files at specified paths and tracks all changes in Git. It does not run any files.
+* `hambone` expects you to create your own `kustomize` bases to use in your Instances, either manually in the repo, or through the `CustomFile` RPC call.
 
 ### Dependencies
 

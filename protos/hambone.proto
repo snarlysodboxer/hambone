@@ -11,11 +11,11 @@ service Instances {
             body: "*"
         };
     }
-    /* rpc Get(GetOptions) returns (InstanceList) { */
-    /*     option (google.api.http) = { */
-    /*         get: "/v1/instance/{name}" */
-    /*     }; */
-    /* } */
+    rpc Get(GetOptions) returns (InstanceList) {
+        option (google.api.http) = {
+            get: "/v1/instance/{start}/{stop}/{exclude_statuses}"
+        };
+    }
     /* rpc Delete(Name) returns (Name) { */
     /*     option (google.api.http) = { */
     /*         delete: "/v1/instance/{name}" */
@@ -35,6 +35,10 @@ message Instance {
     repeated Status statuses = 3;
 }
 
+message InstanceList {
+    repeated Instance instances = 1;
+}
+
 message Status {
     oneof item {
         DeploymentStatus deployment = 1;
@@ -48,10 +52,17 @@ message Status {
 }
 
 message DeploymentStatus {
-    string name = 2;
-    int32 desired = 3;
-    int32 current = 4;
-    int32 up_to_date = 5;
-    int32 available = 6;
+    string name = 1;
+    int32 desired = 2;
+    int32 current = 3;
+    int32 up_to_date = 4;
+    int32 available = 5;
+}
+
+message GetOptions {
+    string name = 1;
+    int32 start = 2;
+    int32 stop = 3;
+    bool exclude_statuses = 4;
 }
 

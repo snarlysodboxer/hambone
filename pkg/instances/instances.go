@@ -15,6 +15,95 @@ import (
 
 // TODO periodically check that working tree is clean?
 
+const (
+	kustomizationFileName = "kustomization.yaml"
+)
+
+type getRequest struct {
+	*pb.GetOptions
+	*pb.InstanceList
+	instancesDir string
+}
+
+func NewGetRequest(getOptions *pb.GetOptions, instancesDir string) *getRequest {
+	return &getRequest{getOptions, &pb.InstanceList{}, instancesDir}
+}
+
+func (request *getRequest) Run() error {
+	list := &pb.InstanceList{}
+
+	// git pull
+	output, err := exec.Command("git", "pull").CombinedOutput()
+	debugExecOutput(output, "git", "pull")
+	if err != nil {
+		return newExecError(err, output, "git", "pull")
+	}
+
+	// list instances directory, sort
+	files, err := ioutil.ReadDir(request.instancesDir) // ReadDir sorts
+	if err != nil {
+		return err
+	}
+	// TODO DRY this out
+	if request.GetOptions.GetName() != "" {
+		for _, file := range files {
+			if file.IsDir() {
+				if file.Name() == request.GetOptions.GetName() {
+					kFile := fmt.Sprintf("%s/%s/%s", request.instancesDir, file.Name(), kustomizationFileName)
+					if _, err := os.Stat(kFile); os.IsNotExist(err) {
+						return errors.New(fmt.Sprintf("Found directory `%s/%s` but it does not contain a `%s` file", request.instancesDir, file.Name(), kustomizationFileName))
+					}
+
+					contents, err := ioutil.ReadFile(kFile)
+					if err != nil {
+						return err
+					}
+					instance := &pb.Instance{Name: file.Name(), KustomizationYaml: string(contents)}
+					list.Instances = append(list.Instances, instance)
+				}
+			}
+		}
+	} else {
+		for _, file := range files {
+			if file.IsDir() {
+				kFile := fmt.Sprintf("%s/%s/%s", request.instancesDir, file.Name(), kustomizationFileName)
+				if _, err := os.Stat(kFile); os.IsNotExist(err) {
+					debug("WARNING found directory `%s/%s` that does not contain a `%s` file, skipping", request.instancesDir, file.Name(), kustomizationFileName)
+					continue
+				}
+				contents, err := ioutil.ReadFile(kFile)
+				if err != nil {
+					return err
+				}
+				instance := &pb.Instance{Name: file.Name(), KustomizationYaml: string(contents)}
+				list.Instances = append(list.Instances, instance)
+			}
+		}
+
+		// filter list to start and stop points in getOptions
+		indexStart, indexStop := ConvertStartStopToSliceIndexes(request.GetOptions.GetStart(), request.GetOptions.GetStop(), int32(len(list.Instances)))
+		if indexStop == 0 {
+			list.Instances = list.Instances[indexStart:]
+		} else {
+			list.Instances = list.Instances[indexStart:indexStop]
+		}
+	}
+
+	// load statuses if desired
+	if !request.GetOptions.GetExcludeStatuses() {
+		for _, pbInstance := range list.Instances {
+			instance := NewInstance(pbInstance, request.instancesDir)
+			if err = instance.loadStatuses(); err != nil {
+				// TODO think about failing gracefully here
+				return err
+			}
+		}
+	}
+	request.InstanceList = list
+
+	return nil
+}
+
 type instance struct {
 	*pb.Instance
 	instanceDir  string
@@ -23,7 +112,7 @@ type instance struct {
 
 func NewInstance(pbInstance *pb.Instance, instancesDir string) *instance {
 	instanceDir := fmt.Sprintf(`%s/%s`, instancesDir, pbInstance.Name)
-	instanceFile := fmt.Sprintf(`%s/kustomization.yaml`, instanceDir)
+	instanceFile := fmt.Sprintf(`%s/%s`, instanceDir, kustomizationFileName)
 	return &instance{pbInstance, instanceDir, instanceFile}
 }
 
@@ -58,7 +147,7 @@ func (instance *instance) apply() error {
 	output, err = exec.Command("git", "pull").CombinedOutput()
 	debugExecOutput(output, "git", "pull")
 	if err != nil {
-		return newExecError(err, output, "git", []string{"pull"})
+		return newExecError(err, output, "git", "pull")
 	}
 
 	// mkdir
@@ -160,6 +249,7 @@ func (instance *instance) loadStatuses() error {
 			status := &pb.Status{Item: statusDeployment}
 			instance.Instance.Statuses = append(instance.Instance.Statuses, status)
 		}
+		// TODO more cases here
 	}
 	return nil
 }
@@ -230,29 +320,29 @@ func rollback(instanceDir, instanceFile string) error {
 		if _, err := exec.Command("git", "ls-files", "--error-unmatch", instanceDir).CombinedOutput(); err != nil {
 			// Dir is not tracked
 			if output, err := exec.Command("rm", "-rf", instanceDir).CombinedOutput(); err != nil {
-				return newExecError(err, output, "rm", []string{fmt.Sprintf("-rf %s", instanceDir)})
+				return newExecError(err, output, "rm", "-rf", instanceDir)
 			}
 		} else {
 			// Dir is tracked
 			if output, err := exec.Command("rm", "-f", instanceFile).CombinedOutput(); err != nil {
-				return newExecError(err, output, "rm", []string{fmt.Sprintf("-rf %s", instanceDir)})
+				return newExecError(err, output, "rm", "-rf", instanceDir)
 			}
 		}
 	} else {
 		// File is tracked
 		args := []string{"reset", "HEAD", instanceFile}
 		if output, err := exec.Command("git", args...).CombinedOutput(); err != nil {
-			return newExecError(err, output, "git", args)
+			return newExecError(err, output, "git", args...)
 		}
 		args = []string{"checkout", instanceFile}
 		if output, err := exec.Command("git", args...).CombinedOutput(); err != nil {
-			return newExecError(err, output, "git", args)
+			return newExecError(err, output, "git", args...)
 		}
 	}
 	return nil
 }
 
-func newExecError(err error, output []byte, cmd string, args []string) error {
+func newExecError(err error, output []byte, cmd string, args ...string) error {
 	c := fmt.Sprintf("%s %s", cmd, strings.Join(args, " "))
 	return errors.New(fmt.Sprintf("ERROR running `%s`:\n\t%s: %s", c, err.Error(), string(output)))
 }
@@ -276,4 +366,16 @@ func namePrefixMatches(instance *pb.Instance) error {
 
 func indent(output []byte) string {
 	return strings.Replace(string(output), "\n", "\n\t", -1)
+}
+
+func ConvertStartStopToSliceIndexes(start, stop, length int32) (int32, int32) {
+	if stop > length {
+		stop = length
+	}
+	if start <= int32(0) {
+		start = 0
+	} else {
+		start = start - 1
+	}
+	return start, stop
 }
