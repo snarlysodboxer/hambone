@@ -15,6 +15,8 @@ import (
 
 // TODO periodically check that working tree is clean?
 
+// TODO log errors
+
 const (
 	kustomizationFileName = "kustomization.yaml"
 )
@@ -34,7 +36,6 @@ func (request *getRequest) Run() error {
 
 	// git pull
 	output, err := exec.Command("git", "pull").CombinedOutput()
-	debugExecOutput(output, "git", "pull")
 	if err != nil {
 		return newExecError(err, output, "git", "pull")
 	}
@@ -142,7 +143,6 @@ func (instance *instance) apply() error {
 
 	// git pull
 	output, err = exec.Command("git", "pull").CombinedOutput()
-	debugExecOutput(output, "git", "pull")
 	if err != nil {
 		return newExecError(err, output, "git", "pull")
 	}
@@ -156,7 +156,7 @@ func (instance *instance) apply() error {
 	if err := ioutil.WriteFile(instanceFile, []byte(instance.KustomizationYaml), 0644); err != nil {
 		return err
 	}
-	debugf("Wrote `%s` with contents:\n%s\n", instanceFile, indent([]byte(instance.KustomizationYaml)))
+	debugf("Wrote `%s` with contents:\n\t%s\n", instanceFile, indent([]byte(instance.KustomizationYaml)))
 
 	// kustomize build <instance path> | kubctl apply -f -
 	_, err = instance.pipeKustomizeToKubectl(`apply`, `-f`, `-`)
@@ -195,6 +195,73 @@ func (instance *instance) apply() error {
 
 	// fill in statuses
 	_ = instance.loadStatuses()
+
+	return nil
+}
+
+func (instance *instance) delete() error {
+	instanceFile := instance.instanceFile
+
+	// TODO DRY this up
+
+	// git pull
+	output, err := exec.Command("git", "pull").CombinedOutput()
+	if err != nil {
+		return newExecError(err, output, "git", "pull")
+	}
+
+	// ensure Instance exists
+	if _, err := os.Stat(instanceFile); os.IsNotExist(err) {
+		return errors.New(fmt.Sprintf("ERROR Instance not found at `%s`", instanceFile))
+	}
+
+	// ensure Instance file is clean in git
+	// check for tracked changes
+	args := []string{`diff`, `--exit-code`, `--`, instanceFile}
+	output, err = exec.Command("git", args...).CombinedOutput()
+	debugExecOutput(output, "git", args...)
+	if err != nil {
+		return errors.New(fmt.Sprintf("There are tracked uncommitted changes for this Instance! This should not happen and could indicate a bug. Fix this manually:\n%s\n", indent(output)))
+	}
+	// check for untracked changes
+	test := fmt.Sprintf("git ls-files --exclude-standard --others %s", instanceFile)
+	args = []string{`-c`, fmt.Sprintf("test -z $(%s)", test)}
+	output, err = exec.Command("sh", args...).CombinedOutput()
+	debugExecOutput(output, "sh", args...)
+	if err != nil {
+		return errors.New("There are untracked uncommitted changes for this Instance! This should not happen and could indicate a bug. Fix this manually.")
+	}
+
+	// kustomize build <instance path> | kubctl delete -f -
+	_, err = instance.pipeKustomizeToKubectl(`delete`, `-f`, `-`)
+	if err != nil {
+		return err
+	}
+
+	// TODO consider the case where any of the following fail, but the objects have been deleted from k8s
+
+	// git rm <instancesDir>/<name>/kustomization.yaml
+	output, err = exec.Command("git", "rm", instanceFile).CombinedOutput()
+	if err != nil {
+		return newExecError(err, output, "git", "rm", instanceFile)
+	}
+	debugExecOutput(output, "git", args...)
+
+	// git commit
+	args = []string{"commit", "-m", fmt.Sprintf(`Automate hambone delete for %s`, instance.Name)}
+	output, err = exec.Command("git", args...).CombinedOutput()
+	debugExecOutput(output, "git", args...)
+	if err != nil {
+		return errors.New(fmt.Sprintf("ERROR with `git %s`, retry manually!\n%s%s", strings.Join(args, " "), err.Error(), indent(output)))
+	}
+
+	// TODO think about retries here and other places
+	// git push
+	output, err = exec.Command("git", "push").CombinedOutput()
+	debugExecOutput(output, "git", "push")
+	if err != nil {
+		return errors.New(fmt.Sprintf("ERROR with `git push`, retry manually!\n%s%s", err.Error(), indent(output)))
+	}
 
 	return nil
 }
@@ -303,6 +370,25 @@ func rollbackCommand(instanceDir, instanceFile, cmd string, args ...string) ([]b
 	return output, nil
 }
 
+// TODO delete this function?
+func rollbackDeleteCommand(instanceDir, instanceFile, cmd string, args ...string) ([]byte, error) {
+	mainOutput, mainErr := exec.Command(cmd, args...).CombinedOutput()
+	debugExecOutput(mainOutput, cmd, args...)
+	if mainErr != nil {
+		output, err := exec.Command("git", "reset", "HEAD", instanceFile).CombinedOutput()
+		if err != nil {
+			return output, newExecError(err, output, "git", "reset", "HEAD", instanceFile)
+		}
+		output, err = exec.Command("git", "checkout", instanceFile).CombinedOutput()
+		if err != nil {
+			return output, newExecError(err, output, "git", "checkout", instanceFile)
+		}
+		return mainOutput, mainErr
+	}
+	return mainOutput, nil
+}
+
+// TODO untangle rollback functions
 func rollbackAndError(instanceDir, instanceFile string, err error) error {
 	rollbackErr := rollback(instanceDir, instanceFile)
 	if rollbackErr != nil {
@@ -340,6 +426,7 @@ func rollback(instanceDir, instanceFile string) error {
 }
 
 func newExecError(err error, output []byte, cmd string, args ...string) error {
+	debugExecOutput(output, cmd, args...)
 	c := fmt.Sprintf("%s %s", cmd, strings.Join(args, " "))
 	return errors.New(fmt.Sprintf("ERROR running `%s`:\n\t%s: %s", c, err.Error(), string(output)))
 }
@@ -363,6 +450,20 @@ func namePrefixMatches(instance *pb.Instance) error {
 
 func indent(output []byte) string {
 	return strings.Replace(string(output), "\n", "\n\t", -1)
+}
+
+func isEmpty(path string) (bool, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return false, err
+	}
+	defer file.Close()
+
+	_, err = file.Readdirnames(1)
+	if err == io.EOF {
+		return true, nil
+	}
+	return false, err
 }
 
 func ConvertStartStopToSliceIndexes(start, stop, length int32) (int32, int32) {

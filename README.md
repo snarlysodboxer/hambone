@@ -24,8 +24,11 @@ _It's a purposeful design choice to execute shell commands rather than using the
 
 ### Roadmap
 
+* Use channels to handle concurrency
 * Document better
 * Track logged in users so Git commits can be properly Authored
 * Tests
 * Consider an additional API for CRUDing base configurations
+* Consider switching to Git [plumbing commands](http://schacon.github.io/git/git.html#_low_level_commands_plumbing)
+* Consider soft delete, or functionality to shutdown K8s pods without deleting (suspend?)
 

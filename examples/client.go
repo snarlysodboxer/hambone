@@ -68,6 +68,7 @@ func applyInstance(client pb.InstancesClient) (*pb.Instance, error) {
 	return instance, nil
 }
 
+// If a name is passed in GetOptions, Start and Stop are ignored
 func getInstance(client pb.InstancesClient) (*pb.InstanceList, error) {
 	getOptions := &pb.GetOptions{Name: "my-client"}
 	instanceList, err := client.Get(context.Background(), getOptions)
@@ -78,12 +79,23 @@ func getInstance(client pb.InstancesClient) (*pb.InstanceList, error) {
 }
 
 func getInstances(client pb.InstancesClient) (*pb.InstanceList, error) {
-	getOptions := &pb.GetOptions{Start: 1, Stop: 1, ExcludeStatuses: true}
+	// getOptions := &pb.GetOptions{Start: 1, Stop: 10, ExcludeStatuses: true} // Get paginated and/or without statuses
+	getOptions := &pb.GetOptions{} // Get all, including statuses
 	instanceList, err := client.Get(context.Background(), getOptions)
 	if err != nil {
 		return instanceList, err
 	}
 	return instanceList, nil
+}
+
+func deleteInstance(client pb.InstancesClient) (*pb.Instance, error) {
+	// instance := &pb.Instance{Name: "my-client"}
+	instance := &pb.Instance{Name: "my-other-client"}
+	instance, err := client.Delete(context.Background(), instance)
+	if err != nil {
+		return instance, err
+	}
+	return instance, nil
 }
 
 func main() {
@@ -116,6 +128,12 @@ func main() {
 			panic(err)
 		}
 		fmt.Printf("Got InstanceList '%v'\n", instanceList)
+	case "deleteInstance":
+		instance, err := deleteInstance(instancesClient)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Deleted Instance '%v'\n", instance)
 	default:
 		fmt.Println("Unrecognized action")
 	}

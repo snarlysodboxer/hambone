@@ -24,7 +24,7 @@ func (server *instancesServer) Apply(ctx context.Context, pbInstance *pb.Instanc
 	return instance.Instance, nil
 }
 
-// Get returns instances from the filesystem, optionally with status information from Kubernetes
+// Get returns Instance(s) from the repo, optionally with status information from Kubernetes
 func (server *instancesServer) Get(ctx context.Context, getOptions *pb.GetOptions) (*pb.InstanceList, error) {
 	request := NewGetRequest(getOptions, server.instancesDir)
 	err := request.Run()
@@ -32,4 +32,15 @@ func (server *instancesServer) Get(ctx context.Context, getOptions *pb.GetOption
 		return request.InstanceList, err
 	}
 	return request.InstanceList, nil
+}
+
+// Delete deletes an Instance from Kubernetes and then from the repo
+func (server *instancesServer) Delete(ctx context.Context, pbInstance *pb.Instance) (*pb.Instance, error) {
+	instance := NewInstance(pbInstance, server.instancesDir)
+	// TODO put a mutex Lock around this?
+	err := instance.delete()
+	if err != nil {
+		return pbInstance, err
+	}
+	return instance.Instance, nil
 }

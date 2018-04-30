@@ -13,18 +13,20 @@ service Instances {
     }
     rpc Get(GetOptions) returns (InstanceList) {
         option (google.api.http) = {
-            get: "/v1/instance/{name}/{start}/{stop}/{exclude_statuses}"
+            get: "/v1/instance/{start}/{stop}/{exclude_statuses}/{name}"
         };
     }
-    /* rpc Delete(Name) returns (Name) { */
-    /*     option (google.api.http) = { */
-    /*         delete: "/v1/instance/{name}" */
-    /*         body: "*" */
-    /*     }; */
-    /* } */
+    rpc Delete(Instance) returns (Instance) {
+        option (google.api.http) = {
+            delete: "/v1/instance/{name}"
+            body: "*"
+        };
+    }
+    // rpc Status // RepoStatus
     /* rpc Render(Instance) returns (StringList) { */
     /*     option (google.api.http) = { */
-    /*         get: "/v1/instance/render/{name}" */
+    /*         post: "/v1/instance/render" */
+    /*         body: "*" */
     /*     }; */
     /* } */
 }
