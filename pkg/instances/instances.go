@@ -370,24 +370,6 @@ func rollbackCommand(instanceDir, instanceFile, cmd string, args ...string) ([]b
 	return output, nil
 }
 
-// TODO delete this function?
-func rollbackDeleteCommand(instanceDir, instanceFile, cmd string, args ...string) ([]byte, error) {
-	mainOutput, mainErr := exec.Command(cmd, args...).CombinedOutput()
-	debugExecOutput(mainOutput, cmd, args...)
-	if mainErr != nil {
-		output, err := exec.Command("git", "reset", "HEAD", instanceFile).CombinedOutput()
-		if err != nil {
-			return output, newExecError(err, output, "git", "reset", "HEAD", instanceFile)
-		}
-		output, err = exec.Command("git", "checkout", instanceFile).CombinedOutput()
-		if err != nil {
-			return output, newExecError(err, output, "git", "checkout", instanceFile)
-		}
-		return mainOutput, mainErr
-	}
-	return mainOutput, nil
-}
-
 // TODO untangle rollback functions
 func rollbackAndError(instanceDir, instanceFile string, err error) error {
 	rollbackErr := rollback(instanceDir, instanceFile)
