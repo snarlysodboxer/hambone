@@ -13,6 +13,16 @@ import (
 	"strings"
 )
 
+// NOTES for Git plugin:
+// * Setup lock plugin, with an in-memory option, (etcd later)
+//     * With in-memory option, you can only run one replica of the app at a time
+//     * With etcd option, you can run muliple replicas of the app
+
+// ensure repo is clean and pulled at init time (push if needed)
+// cluster-wide lock on any repo changes
+// if update fails, reset repo, release lock, return error to caller
+// if a committed push fails, retry and eventually, release lock, return error to caller, (shutdown, delete self-pod)?
+
 // TODO periodically check that working tree is clean?
 
 // TODO log errors

@@ -22,6 +22,7 @@ service Instances {
             body: "*"
         };
     }
+    // rpc CustomFile // write files to specified paths
     // rpc Status // RepoStatus
     /* rpc Render(Instance) returns (StringList) { */
     /*     option (google.api.http) = { */

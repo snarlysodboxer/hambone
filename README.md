@@ -5,6 +5,7 @@
 ### Design
 
 * `hambone` consists of a gRPC server (with grpc-gateway JSON adapter)
+* `hambone` is designed to be run in replica in Kubernetes
 * `hambone` and it's API aim to be as simple and dumb as possible, and expect you to do almost all the validation client-side where you can also build in your custom domain logic, or obtain external information for secrets or disk volume IDs, etc.
 * `hambone` uses `kubectl apply` and `kustomize build` both of which validate YAML, and `kubectl` validates objects. Care is taken to return meaningful errors.
 * `hambone` writes `kustomization.yaml` files in a structured way, and tracks all changes in Git. It rejects any `kustomization.yml` file changes which are rejected by Kubernetes.
@@ -31,4 +32,5 @@ _It's a purposeful design choice to execute shell commands rather than using the
 * Consider an additional API for CRUDing base configurations
 * Consider switching to Git [plumbing commands](http://schacon.github.io/git/git.html#_low_level_commands_plumbing)
 * Consider soft delete, or functionality to shutdown K8s pods without deleting (suspend?)
+* Consider converting usage of Git to a plugin
 
