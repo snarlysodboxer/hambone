@@ -12,7 +12,7 @@ const (
 	kustomizationYamlThird = `namePrefix: my-third-client-
 
 commonLabels:
-  client: my-other-client
+  client: my-third-client
   myProductVersion: '3.1'
 
 commonAnnotations:
@@ -81,8 +81,8 @@ var (
 
 func applyInstance(client pb.InstancesClient) (*pb.Instance, error) {
 	// instance := &pb.Instance{Name: "my-client", KustomizationYaml: kustomizationYaml}
-	// instance := &pb.Instance{Name: "my-other-client", KustomizationYaml: kustomizationYamlOther}
-	instance := &pb.Instance{Name: "my-third-client", KustomizationYaml: kustomizationYamlThird}
+	instance := &pb.Instance{Name: "my-other-client", KustomizationYaml: kustomizationYamlOther}
+	// instance := &pb.Instance{Name: "my-third-client", KustomizationYaml: kustomizationYamlThird}
 	instance, err := client.Apply(context.Background(), instance)
 	if err != nil {
 		return instance, err
@@ -111,8 +111,9 @@ func getInstances(client pb.InstancesClient) (*pb.InstanceList, error) {
 }
 
 func deleteInstance(client pb.InstancesClient) (*pb.Instance, error) {
-	instance := &pb.Instance{Name: "my-client"}
-	// instance := &pb.Instance{Name: "my-other-client"}
+	// instance := &pb.Instance{Name: "my-client"}
+	instance := &pb.Instance{Name: "my-other-client"}
+	// instance := &pb.Instance{Name: "my-third-client"}
 	instance, err := client.Delete(context.Background(), instance)
 	if err != nil {
 		return instance, err
