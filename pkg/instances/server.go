@@ -2,21 +2,23 @@ package instances
 
 import (
 	pb "github.com/snarlysodboxer/hambone/generated"
+	"github.com/snarlysodboxer/hambone/plugins/state"
 	"golang.org/x/net/context"
 )
 
-type instancesServer struct {
-	instancesDir string
+type InstancesServer struct {
+	InstancesDir string
+	StateStore   state.StateEngine
 }
 
-func NewInstancesServer(instancesDir string) *instancesServer {
-	return &instancesServer{instancesDir}
+func NewInstancesServer(instancesDir string, stateStore state.StateEngine) *InstancesServer {
+	return &InstancesServer{instancesDir, stateStore}
 }
 
 // Apply adds/updates the given Instance, applies it to Kubernetes, and commits the changes, rolling back as necessary
-func (server *instancesServer) Apply(ctx context.Context, pbInstance *pb.Instance) (*pb.Instance, error) {
-	instance := NewInstance(pbInstance, server.instancesDir)
+func (server *InstancesServer) Apply(ctx context.Context, pbInstance *pb.Instance) (*pb.Instance, error) {
 	// TODO put a mutex Lock around this?
+	instance := NewInstance(pbInstance, server)
 	err := instance.apply()
 	if err != nil {
 		return pbInstance, err
@@ -25,8 +27,8 @@ func (server *instancesServer) Apply(ctx context.Context, pbInstance *pb.Instanc
 }
 
 // Get returns Instance(s) from the repo, optionally with status information from Kubernetes
-func (server *instancesServer) Get(ctx context.Context, getOptions *pb.GetOptions) (*pb.InstanceList, error) {
-	request := NewGetRequest(getOptions, server.instancesDir)
+func (server *InstancesServer) Get(ctx context.Context, getOptions *pb.GetOptions) (*pb.InstanceList, error) {
+	request := NewGetRequest(getOptions, server)
 	err := request.Run()
 	if err != nil {
 		return request.InstanceList, err
@@ -35,8 +37,8 @@ func (server *instancesServer) Get(ctx context.Context, getOptions *pb.GetOption
 }
 
 // Delete deletes an Instance from Kubernetes and then from the repo
-func (server *instancesServer) Delete(ctx context.Context, pbInstance *pb.Instance) (*pb.Instance, error) {
-	instance := NewInstance(pbInstance, server.instancesDir)
+func (server *InstancesServer) Delete(ctx context.Context, pbInstance *pb.Instance) (*pb.Instance, error) {
+	instance := NewInstance(pbInstance, server)
 	// TODO put a mutex Lock around this?
 	err := instance.delete()
 	if err != nil {

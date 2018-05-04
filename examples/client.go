@@ -9,6 +9,27 @@ import (
 )
 
 const (
+	kustomizationYamlThird = `namePrefix: my-third-client-
+
+commonLabels:
+  client: my-other-client
+  myProductVersion: '3.1'
+
+commonAnnotations:
+  TAM: joel
+
+secretGenerator:
+- name: my-product-app-key
+  commands:
+    app-key: "echo $PWD"
+  type: Opaque
+
+bases:
+- ../../my-product
+
+patches:
+- ../../versions/3.1.yml
+`
 	kustomizationYamlOther = `namePrefix: my-other-client-
 
 commonLabels:
@@ -60,7 +81,8 @@ var (
 
 func applyInstance(client pb.InstancesClient) (*pb.Instance, error) {
 	// instance := &pb.Instance{Name: "my-client", KustomizationYaml: kustomizationYaml}
-	instance := &pb.Instance{Name: "my-other-client", KustomizationYaml: kustomizationYamlOther}
+	// instance := &pb.Instance{Name: "my-other-client", KustomizationYaml: kustomizationYamlOther}
+	instance := &pb.Instance{Name: "my-third-client", KustomizationYaml: kustomizationYamlThird}
 	instance, err := client.Apply(context.Background(), instance)
 	if err != nil {
 		return instance, err
@@ -89,8 +111,8 @@ func getInstances(client pb.InstancesClient) (*pb.InstanceList, error) {
 }
 
 func deleteInstance(client pb.InstancesClient) (*pb.Instance, error) {
-	// instance := &pb.Instance{Name: "my-client"}
-	instance := &pb.Instance{Name: "my-other-client"}
+	instance := &pb.Instance{Name: "my-client"}
+	// instance := &pb.Instance{Name: "my-other-client"}
 	instance, err := client.Delete(context.Background(), instance)
 	if err != nil {
 		return instance, err

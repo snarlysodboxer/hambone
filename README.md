@@ -23,6 +23,15 @@ _It's a purposeful design choice to execute shell commands rather than using the
     * `git`
 * Typical usage would be to package these executables together in a Docker image along with your Git repository, and then mount in credentials for `kubectl` and `git` when running a container.
 
+### Build/Run
+
+* Normal
+    * `go build -buildmode=plugin -o git.so plugins/state/git/git.go`
+    * `go build -o hambone main.go && ./hambone`
+* Debug
+    * `go build -tags debug -buildmode=plugin -o git.so plugins/state/git/git.go`
+    * `go build -tags debug -o hambone main.go && ./hambone`
+
 ### Roadmap
 
 * Use channels to handle concurrency
