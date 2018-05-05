@@ -194,13 +194,13 @@ func (instance *Instance) pipeKustomizeToKubectl(suppressOutput bool, args ...st
 	buf.ReadFrom(stderr)
 	if err := kustomizeCmd.Wait(); err != nil {
 		helpers.PrintExecOutput(buf.Bytes(), "kustomize", `build`, instanceDir)
-		return emptybytes, errors.New(fmt.Sprintf("ERROR running `kustomize build %s`:\n%s%s", instanceDir, strings.TrimSuffix(buf.String(), "\n"), err.Error()))
+		return buf.Bytes(), errors.New(fmt.Sprintf("ERROR running `kustomize build %s`:\n%s%s", instanceDir, strings.TrimSuffix(buf.String(), "\n"), err.Error()))
 	}
 	output, err := kubectlCmd.CombinedOutput()
 	if suppressOutput {
-		helpers.Printf("Ran `kubectl %s` and got success\n\n", strings.Join(args, " "))
+		helpers.Printf("Ran `kustomize build %s | kubectl %s` and got success\n\n", instanceDir, strings.Join(args, " "))
 	} else {
-		helpers.PrintExecOutput(output, "kubectl", args...)
+		helpers.PrintExecOutput(output, fmt.Sprintf("kustomize build %s | kubectl", instanceDir), args...)
 	}
 	if err != nil {
 		return output, err

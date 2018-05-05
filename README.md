@@ -16,30 +16,31 @@
 
 _It's a purposeful design choice to execute shell commands rather than using the Kubernetes and Git APIs directly. This makes it easy to support most versions of Kubernetes/kubectl and Git, and helps to keep this app simple._
 
+* For the `etcd` State Store option, etcd is required
+
 * We use the following external executables
     * `sh`
     * `test`
     * `kubectl`
-    * `git`
+    * `git` (Only for `git` State Store option)
 * Typical usage would be to package these executables together in a Docker image along with your Git repository, and then mount in credentials for `kubectl` and `git` when running a container.
 
 ### Build/Run
 
 * Normal
-    * `go build -buildmode=plugin -o git.so plugins/state/git/git.go`
     * `go build -o hambone main.go && ./hambone`
 * Debug
-    * `go build -tags debug -buildmode=plugin -o git.so plugins/state/git/git.go`
     * `go build -tags debug -o hambone main.go && ./hambone`
 
 ### Roadmap
 
-* Use channels to handle concurrency
+* Add metrics
 * Document better
-* Track logged in users so Git commits can be properly Authored
 * Tests
 * Consider an additional API for CRUDing base configurations
-* Consider switching to Git [plumbing commands](http://schacon.github.io/git/git.html#_low_level_commands_plumbing)
 * Consider soft delete, or functionality to shutdown K8s pods without deleting (suspend?)
-* Consider converting usage of Git to a plugin
+* Git plugin
+    * Consider switching to [plumbing commands](http://schacon.github.io/git/git.html#_low_level_commands_plumbing)
+    * Has been converted to an interface, needs refactor
+    * Track logged in users so Git commits can be properly Authored
 

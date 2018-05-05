@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	dialTimeout    = 5 * time.Second
-	requestTimeout = 5 * time.Second
+	dialTimeout       = 5 * time.Second
+	requestTimeout    = 5 * time.Second
+	instanceKeyPrefix = "hambone_instance_"
 )
 
 var (
@@ -31,6 +32,10 @@ func (engine *EtcdEngine) Init() error {
 	return nil
 }
 
+func (engine *EtcdEngine) NewGetter(options *pb.GetOptions, list *pb.InstanceList, instancesDir string) state.Getter {
+	return &EtcdGetter{options, list, instancesDir}
+}
+
 func (engine *EtcdEngine) NewUpdater(instance *pb.Instance, instancesDir string) state.Updater {
 	instanceDir, instanceFile := helpers.GetInstanceDirFile(instancesDir, instance.Name)
 	return &EtcdUpdater{instance, instanceDir, instanceFile, nil, nil, nil}
@@ -39,10 +44,6 @@ func (engine *EtcdEngine) NewUpdater(instance *pb.Instance, instancesDir string)
 func (engine *EtcdEngine) NewDeleter(instance *pb.Instance, instancesDir string) state.Deleter {
 	instanceDir, instanceFile := helpers.GetInstanceDirFile(instancesDir, instance.Name)
 	return &EtcdDeleter{instance, instanceDir, instanceFile}
-}
-
-func (engine *EtcdEngine) NewGetter(options *pb.GetOptions, list *pb.InstanceList, instancesDir string) state.Getter {
-	return &EtcdGetter{options, list, instancesDir}
 }
 
 type EtcdGetter struct {
@@ -54,59 +55,40 @@ type EtcdGetter struct {
 func (getter *EtcdGetter) Run() error {
 	list := getter.InstanceList
 
-	// if getOptions.Name != ""
-	//   read etcd key
-	//   create pb.Instance
-	//   load into list
-	// else
-	// list etcd keys, sort
-	//   for each key
-	//     create pb.Instance
-	//     load into list
-	//   filter list to start and stop points in getOptions
-
-	// list instances directory, sort
-	files, err := ioutil.ReadDir(getter.instancesDir) // ReadDir sorts
+	// setup client
+	client, err := clientv3.New(clientv3.Config{
+		Endpoints:   endpoints,
+		DialTimeout: dialTimeout,
+	})
 	if err != nil {
 		return err
 	}
-	// TODO DRY this out
+	defer func() { helpers.Println("Close KV client"); client.Close() }()
+	kvClient := clientv3.NewKV(client)
+	helpers.Println("Created KV client")
+
+	// get key-values
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	response := &clientv3.GetResponse{}
 	if getter.GetOptions.GetName() != "" {
-		for _, file := range files {
-			if file.IsDir() {
-				if file.Name() == getter.GetOptions.GetName() {
-					_, instanceFile := helpers.GetInstanceDirFile(getter.instancesDir, file.Name())
-					if _, err := os.Stat(instanceFile); os.IsNotExist(err) {
-						return errors.New(fmt.Sprintf("Found directory `%s/%s` but it does not contain a `%s` file", getter.instancesDir, file.Name(), helpers.KustomizationFileName))
-					}
-
-					contents, err := ioutil.ReadFile(instanceFile)
-					if err != nil {
-						return err
-					}
-					instance := &pb.Instance{Name: file.Name(), KustomizationYaml: string(contents)}
-					list.Instances = append(list.Instances, instance)
-				}
-			}
-		}
+		response, err = kvClient.Get(ctx, getInstanceKey(getter.GetOptions.GetName()))
 	} else {
-		for _, file := range files {
-			if file.IsDir() {
-				_, instanceFile := helpers.GetInstanceDirFile(getter.instancesDir, file.Name())
-				if _, err := os.Stat(instanceFile); os.IsNotExist(err) {
-					// TODO figure out how to warn here
-					helpers.Println("WARNING found directory `%s/%s` that does not contain a `%s` file, skipping", getter.instancesDir, file.Name(), helpers.KustomizationFileName)
-					continue
-				}
-				contents, err := ioutil.ReadFile(instanceFile)
-				if err != nil {
-					return err
-				}
-				instance := &pb.Instance{Name: file.Name(), KustomizationYaml: string(contents)}
-				list.Instances = append(list.Instances, instance)
-			}
-		}
+		response, err = kvClient.Get(ctx, instanceKeyPrefix, clientv3.WithPrefix(), clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend))
 
+	}
+	cancel()
+	if err != nil {
+		return err
+	}
+
+	// load key-values into instanceList
+	for _, kv := range response.Kvs {
+		list.Instances = append(list.Instances, &pb.Instance{
+			Name: stripInstanceKeyPrefix(string(kv.Key)), KustomizationYaml: string(kv.Value),
+		})
+	}
+
+	if getter.GetOptions.GetName() == "" {
 		// filter list to start and stop points in getOptions
 		indexStart, indexStop := helpers.ConvertStartStopToSliceIndexes(getter.GetOptions.GetStart(), getter.GetOptions.GetStop(), int32(len(list.Instances)))
 		if indexStop == 0 {
@@ -187,6 +169,7 @@ func (updater *EtcdUpdater) Init() error {
 				return updater.cleanUp(erR)
 			}
 		}
+		updater.Instance.OldInstance = nil
 	}
 
 	// mkdir
@@ -215,7 +198,7 @@ func (updater *EtcdUpdater) Commit() (erR error) {
 	instanceKey := getInstanceKey(updater.Instance.Name)
 	defer func() { erR = updater.cleanUp(nil) }() // TODO this swallows innerError from cleanUp, think about this
 
-	// at this point, OldInstance matches, we have a lock, and
+	// at this point, OldInstance matches if present, we have a lock, and
 	//   it doesn't matter if the key is pre-existing or not, so just put
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 	_, err := updater.etcdClient.Put(ctx, instanceKey, updater.Instance.KustomizationYaml)
@@ -277,5 +260,9 @@ func (deleter *EtcdDeleter) Commit() error {
 }
 
 func getInstanceKey(name string) string {
-	return fmt.Sprintf("hambone_instance_%s", name)
+	return fmt.Sprintf("%s%s", instanceKeyPrefix, name)
+}
+
+func stripInstanceKeyPrefix(name string) string {
+	return name[len(instanceKeyPrefix):]
 }
