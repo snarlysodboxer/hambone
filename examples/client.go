@@ -72,6 +72,27 @@ bases:
 patches:
 - ../../versions/3.1.yml
 `
+	kustomizationYamlMod = `namePrefix: my-client-
+
+commonLabels:
+  client: my-client
+  myProductVersion: '3.6'
+
+commonAnnotations:
+  TAM: joel
+
+secretGenerator:
+- name: my-product-app-key
+  commands:
+    app-key: "echo $PWD"
+  type: Opaque
+
+bases:
+- ../../my-product
+
+patches:
+- ../../versions/3.6.yml
+`
 )
 
 var (
@@ -81,8 +102,21 @@ var (
 
 func applyInstance(client pb.InstancesClient) (*pb.Instance, error) {
 	// instance := &pb.Instance{Name: "my-client", KustomizationYaml: kustomizationYaml}
-	instance := &pb.Instance{Name: "my-other-client", KustomizationYaml: kustomizationYamlOther}
-	// instance := &pb.Instance{Name: "my-third-client", KustomizationYaml: kustomizationYamlThird}
+	// instance := &pb.Instance{Name: "my-other-client", KustomizationYaml: kustomizationYamlOther}
+	instance := &pb.Instance{Name: "my-third-client", KustomizationYaml: kustomizationYamlThird}
+	instance, err := client.Apply(context.Background(), instance)
+	if err != nil {
+		return instance, err
+	}
+	return instance, nil
+}
+
+// atomic update
+func updateInstance(client pb.InstancesClient) (*pb.Instance, error) {
+	// instance := &pb.Instance{Name: "my-client", KustomizationYaml: kustomizationYamlMod}
+	// instance.OldInstance = &pb.Instance{Name: "my-client", KustomizationYaml: kustomizationYaml}
+	instance := &pb.Instance{Name: "my-client", KustomizationYaml: kustomizationYaml}
+	instance.OldInstance = &pb.Instance{Name: "my-client", KustomizationYaml: kustomizationYamlMod}
 	instance, err := client.Apply(context.Background(), instance)
 	if err != nil {
 		return instance, err
@@ -139,6 +173,12 @@ func main() {
 			panic(err)
 		}
 		fmt.Printf("Applied Instance '%v'\n", instance)
+	case "updateInstance":
+		instance, err := updateInstance(instancesClient)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Updated Instance '%v'\n", instance)
 	case "getInstance":
 		instanceList, err := getInstance(instancesClient)
 		if err != nil {

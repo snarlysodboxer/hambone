@@ -37,6 +37,7 @@ message Instance {
     string kustomization_yaml = 2;
     repeated Status statuses = 3;
     string statuses_error_message = 4;
+    Instance old_instance = 5; // for atomic transaction, ignored if Instance does already exist in state store
 }
 
 message InstanceList {

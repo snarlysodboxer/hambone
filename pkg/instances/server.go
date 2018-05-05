@@ -2,7 +2,7 @@ package instances
 
 import (
 	pb "github.com/snarlysodboxer/hambone/generated"
-	"github.com/snarlysodboxer/hambone/plugins/state"
+	"github.com/snarlysodboxer/hambone/pkg/state"
 	"golang.org/x/net/context"
 )
 

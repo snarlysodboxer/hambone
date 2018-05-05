@@ -1,4 +1,4 @@
-package main
+package git
 
 // Notes on this plugin
 // The remaining notes and this plugin, while working is for those who can tollerate the occasional difficulties that arrise from the git server being down and from concurrency. (This would usually mean manually inspecting and cleaning in the repo, or deleting the pod it's running in and starting from the latest commit.) This code could well be improved but has been back-burnered in favor of working on the etcd plugin.
@@ -12,6 +12,8 @@ package main
 // if update fails, reset repo, release lock, return error to caller
 // if a committed push fails, retry and eventually, release lock, return error to caller, (shutdown, delete self-pod)?
 
+// TODO add atomicity via OldInstance (see etcd plugin)
+
 // TODO periodically check that working tree is clean?
 
 import (
@@ -19,15 +21,11 @@ import (
 	"fmt"
 	pb "github.com/snarlysodboxer/hambone/generated"
 	"github.com/snarlysodboxer/hambone/pkg/helpers"
-	"github.com/snarlysodboxer/hambone/plugins/state"
+	"github.com/snarlysodboxer/hambone/pkg/state"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
-)
-
-const (
-	kustomizationFileName = "kustomization.yaml"
 )
 
 var (
@@ -42,12 +40,12 @@ func (engine *GitEngine) Init() error {
 }
 
 func (engine *GitEngine) NewUpdater(instance *pb.Instance, instancesDir string) state.Updater {
-	instanceDir, instanceFile := getInstanceDirFile(instancesDir, instance.Name)
+	instanceDir, instanceFile := helpers.GetInstanceDirFile(instancesDir, instance.Name)
 	return &GitUpdater{instance, instanceDir, instanceFile}
 }
 
 func (engine *GitEngine) NewDeleter(instance *pb.Instance, instancesDir string) state.Deleter {
-	instanceDir, instanceFile := getInstanceDirFile(instancesDir, instance.Name)
+	instanceDir, instanceFile := helpers.GetInstanceDirFile(instancesDir, instance.Name)
 	return &GitDeleter{instance, instanceDir, instanceFile}
 }
 
@@ -66,7 +64,7 @@ func (getter *GitGetter) Run() error {
 	// git pull
 	output, err := exec.Command("git", "pull").CombinedOutput()
 	if err != nil {
-		return newExecError(err, output, "git", "pull")
+		return helpers.NewExecError(err, output, "git", "pull")
 	}
 
 	// list instances directory, sort
@@ -79,12 +77,12 @@ func (getter *GitGetter) Run() error {
 		for _, file := range files {
 			if file.IsDir() {
 				if file.Name() == getter.GetOptions.GetName() {
-					kFile := fmt.Sprintf("%s/%s/%s", getter.instancesDir, file.Name(), kustomizationFileName)
-					if _, err := os.Stat(kFile); os.IsNotExist(err) {
-						return errors.New(fmt.Sprintf("Found directory `%s/%s` but it does not contain a `%s` file", getter.instancesDir, file.Name(), kustomizationFileName))
+					_, instanceFile := helpers.GetInstanceDirFile(getter.instancesDir, file.Name())
+					if _, err := os.Stat(instanceFile); os.IsNotExist(err) {
+						return errors.New(fmt.Sprintf("Found directory `%s/%s` but it does not contain a `%s` file", getter.instancesDir, file.Name(), helpers.KustomizationFileName))
 					}
 
-					contents, err := ioutil.ReadFile(kFile)
+					contents, err := ioutil.ReadFile(instanceFile)
 					if err != nil {
 						return err
 					}
@@ -96,14 +94,14 @@ func (getter *GitGetter) Run() error {
 	} else {
 		for _, file := range files {
 			if file.IsDir() {
-				kFile := fmt.Sprintf("%s/%s/%s", getter.instancesDir, file.Name(), kustomizationFileName)
-				if _, err := os.Stat(kFile); os.IsNotExist(err) {
+				_, instanceFile := helpers.GetInstanceDirFile(getter.instancesDir, file.Name())
+				if _, err := os.Stat(instanceFile); os.IsNotExist(err) {
 					// TODO figure out how to warn here
-					// debug("WARNING found directory `%s/%s` that does not contain a `%s` file, skipping", getter.instancesDir, file.Name(), kustomizationFileName)
-					fmt.Println("WARNING found directory `%s/%s` that does not contain a `%s` file, skipping", getter.instancesDir, file.Name(), kustomizationFileName)
+					// debug("WARNING found directory `%s/%s` that does not contain a `%s` file, skipping", getter.instancesDir, file.Name(), helpers.KustomizationFileName)
+					fmt.Println("WARNING found directory `%s/%s` that does not contain a `%s` file, skipping", getter.instancesDir, file.Name(), helpers.KustomizationFileName)
 					continue
 				}
-				contents, err := ioutil.ReadFile(kFile)
+				contents, err := ioutil.ReadFile(instanceFile)
 				if err != nil {
 					return err
 				}
@@ -113,7 +111,7 @@ func (getter *GitGetter) Run() error {
 		}
 
 		// filter list to start and stop points in getOptions
-		indexStart, indexStop := ConvertStartStopToSliceIndexes(getter.GetOptions.GetStart(), getter.GetOptions.GetStop(), int32(len(list.Instances)))
+		indexStart, indexStop := helpers.ConvertStartStopToSliceIndexes(getter.GetOptions.GetStart(), getter.GetOptions.GetStop(), int32(len(list.Instances)))
 		if indexStop == 0 {
 			list.Instances = list.Instances[indexStart:]
 		} else {
@@ -158,7 +156,7 @@ func (updater *GitUpdater) Init() error {
 	// git pull
 	output, err = exec.Command("git", "pull").CombinedOutput()
 	if err != nil {
-		return newExecError(err, output, "git", "pull")
+		return helpers.NewExecError(err, output, "git", "pull")
 	}
 
 	// mkdir
@@ -234,7 +232,7 @@ func (deleter *GitDeleter) Init() error {
 	// git pull
 	output, err := exec.Command("git", "pull").CombinedOutput()
 	if err != nil {
-		return newExecError(err, output, "git", "pull")
+		return helpers.NewExecError(err, output, "git", "pull")
 	}
 
 	// ensure Instance exists
@@ -276,7 +274,7 @@ func (deleter *GitDeleter) Commit() error {
 	// git rm <instancesDir>/<name>/kustomization.yaml
 	output, err := exec.Command("git", "rm", instanceFile).CombinedOutput()
 	if err != nil {
-		return newExecError(err, output, "git", "rm", instanceFile)
+		return helpers.NewExecError(err, output, "git", "rm", instanceFile)
 	}
 	helpers.PrintExecOutput(output, "git", "rm", instanceFile)
 
@@ -323,48 +321,24 @@ func rollback(instanceDir, instanceFile string) error {
 		if _, err := exec.Command("git", "ls-files", "--error-unmatch", instanceDir).CombinedOutput(); err != nil {
 			// Dir is not tracked
 			if output, err := exec.Command("rm", "-rf", instanceDir).CombinedOutput(); err != nil {
-				return newExecError(err, output, "rm", "-rf", instanceDir)
+				return helpers.NewExecError(err, output, "rm", "-rf", instanceDir)
 			}
 		} else {
 			// Dir is tracked
 			if output, err := exec.Command("rm", "-f", instanceFile).CombinedOutput(); err != nil {
-				return newExecError(err, output, "rm", "-rf", instanceDir)
+				return helpers.NewExecError(err, output, "rm", "-rf", instanceDir)
 			}
 		}
 	} else {
 		// File is tracked
 		args := []string{"reset", "HEAD", instanceFile}
 		if output, err := exec.Command("git", args...).CombinedOutput(); err != nil {
-			return newExecError(err, output, "git", args...)
+			return helpers.NewExecError(err, output, "git", args...)
 		}
 		args = []string{"checkout", instanceFile}
 		if output, err := exec.Command("git", args...).CombinedOutput(); err != nil {
-			return newExecError(err, output, "git", args...)
+			return helpers.NewExecError(err, output, "git", args...)
 		}
 	}
 	return nil
-}
-
-func newExecError(err error, output []byte, cmd string, args ...string) error {
-	helpers.PrintExecOutput(output, cmd, args...)
-	c := fmt.Sprintf("%s %s", cmd, strings.Join(args, " "))
-	return errors.New(fmt.Sprintf("ERROR running `%s`:\n\t%s: %s", c, err.Error(), string(output)))
-}
-
-func ConvertStartStopToSliceIndexes(start, stop, length int32) (int32, int32) {
-	if stop > length {
-		stop = length
-	}
-	if start <= int32(0) {
-		start = 0
-	} else {
-		start = start - 1
-	}
-	return start, stop
-}
-
-func getInstanceDirFile(instancesDir, instanceName string) (string, string) {
-	instanceDir := fmt.Sprintf(`%s/%s`, instancesDir, instanceName)
-	instanceFile := fmt.Sprintf(`%s/%s`, instanceDir, kustomizationFileName)
-	return instanceDir, instanceFile
 }

@@ -15,10 +15,6 @@ import (
 
 // TODO log errors
 
-const (
-	kustomizationFileName = "kustomization.yaml"
-)
-
 type GetRequest struct {
 	*pb.GetOptions
 	*pb.InstanceList
@@ -59,7 +55,7 @@ type Instance struct {
 
 func NewInstance(pbInstance *pb.Instance, server *InstancesServer) *Instance {
 	instanceDir := fmt.Sprintf(`%s/%s`, server.InstancesDir, pbInstance.Name)
-	instanceFile := fmt.Sprintf(`%s/%s`, instanceDir, kustomizationFileName)
+	instanceFile := fmt.Sprintf(`%s/%s`, instanceDir, helpers.KustomizationFileName)
 	return &Instance{pbInstance, instanceDir, instanceFile, server}
 }
 
@@ -77,14 +73,14 @@ func (instance *Instance) apply() error {
 	}
 
 	// kustomize build <instance path> | kubctl apply -f -
-	_, err = instance.pipeKustomizeToKubectl(`apply`, `-f`, `-`)
+	_, err = instance.pipeKustomizeToKubectl(false, `apply`, `-f`, `-`)
 	if err != nil {
 		return updater.Cancel(err)
 	}
 
 	err = updater.Commit()
 	if err != nil {
-		return updater.Cancel(err)
+		return err
 	}
 
 	// fill in statuses
@@ -101,14 +97,14 @@ func (instance *Instance) delete() error {
 	}
 
 	// kustomize build <instance path> | kubctl delete -f -
-	_, err = instance.pipeKustomizeToKubectl(`delete`, `-f`, `-`)
+	_, err = instance.pipeKustomizeToKubectl(false, `delete`, `-f`, `-`)
 	if err != nil {
 		return deleter.Cancel(err)
 	}
 
 	err = deleter.Commit()
 	if err != nil {
-		return deleter.Cancel(err)
+		return err
 	}
 
 	return nil
@@ -138,7 +134,7 @@ type ItemStatus struct {
 }
 
 func (instance *Instance) loadStatuses() error {
-	output, err := instance.pipeKustomizeToKubectl(`get`, `-o`, `yaml`, `-f`, `-`)
+	output, err := instance.pipeKustomizeToKubectl(true, `get`, `-o`, `yaml`, `-f`, `-`)
 	if err != nil {
 		instance.Instance.StatusesErrorMessage = string(output)
 		return err
@@ -166,7 +162,7 @@ func (instance *Instance) loadStatuses() error {
 	return nil
 }
 
-func (instance *Instance) pipeKustomizeToKubectl(args ...string) ([]byte, error) {
+func (instance *Instance) pipeKustomizeToKubectl(suppressOutput bool, args ...string) ([]byte, error) {
 	instanceDir := instance.InstanceDir
 	emptybytes := []byte{}
 
@@ -201,7 +197,11 @@ func (instance *Instance) pipeKustomizeToKubectl(args ...string) ([]byte, error)
 		return emptybytes, errors.New(fmt.Sprintf("ERROR running `kustomize build %s`:\n%s%s", instanceDir, strings.TrimSuffix(buf.String(), "\n"), err.Error()))
 	}
 	output, err := kubectlCmd.CombinedOutput()
-	helpers.PrintExecOutput(output, "kubectl", args...)
+	if suppressOutput {
+		helpers.Printf("Ran `kubectl %s` and got success\n\n", strings.Join(args, " "))
+	} else {
+		helpers.PrintExecOutput(output, "kubectl", args...)
+	}
 	if err != nil {
 		return output, err
 	}
