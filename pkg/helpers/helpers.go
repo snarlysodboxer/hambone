@@ -3,6 +3,9 @@ package helpers
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -36,4 +39,19 @@ func GetInstanceDirFile(instancesDir, instanceName string) (string, string) {
 	instanceDir := fmt.Sprintf(`%s/%s`, instancesDir, instanceName)
 	instanceFile := fmt.Sprintf(`%s/%s`, instanceDir, KustomizationFileName)
 	return instanceDir, instanceFile
+}
+
+func MkdirFile(filePath, contents string) error {
+	// mkdir
+	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+		return err
+	}
+
+	// write file
+	if err := ioutil.WriteFile(filePath, []byte(contents), 0644); err != nil {
+		return err
+	}
+	Printf("Wrote `%s` with contents:\n\t%s\n", filePath, Indent([]byte(contents)))
+
+	return nil
 }

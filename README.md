@@ -16,14 +16,14 @@
 
 _It's a purposeful design choice to execute shell commands rather than using the Kubernetes and Git APIs directly. This makes it easy to support most versions of Kubernetes/kubectl and Git, and helps to keep this app simple._
 
-* For the `etcd` State Store option, etcd is required
-
 * We use the following external executables
     * `sh`
     * `test`
     * `kubectl`
-    * `git` (Only for `git` State Store option)
+    * `git` (Only for `git` State Store adapter)
 * Typical usage would be to package these executables together in a Docker image along with your Git repository, and then mount in credentials for `kubectl` and `git` when running a container.
+
+* For the `etcd` State Store adapter, etcd version 3 is required
 
 ### Build/Run
 

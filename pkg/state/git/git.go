@@ -1,21 +1,5 @@
 package git
 
-// Notes on this plugin
-// The remaining notes and this plugin, while working is for those who can tollerate the occasional difficulties that arrise from the git server being down and from concurrency. (This would usually mean manually inspecting and cleaning in the repo, or deleting the pod it's running in and starting from the latest commit.) This code could well be improved but has been back-burnered in favor of working on the etcd plugin.
-
-// * Setup lock plugin, with an in-memory option, (etcd later)
-//     * With in-memory option, you can only run one replica of the app at a time
-//     * With etcd option, you can run muliple replicas of the app
-
-// ensure repo is clean and pulled at init time (push if needed)
-// cluster-wide lock on any repo changes
-// if update fails, reset repo, release lock, return error to caller
-// if a committed push fails, retry and eventually, release lock, return error to caller, (shutdown, delete self-pod)?
-
-// TODO add atomicity via OldInstance (see etcd plugin)
-
-// TODO periodically check that working tree is clean?
-
 import (
 	"errors"
 	"fmt"

@@ -8,6 +8,7 @@ import (
 	"github.com/snarlysodboxer/hambone/pkg/helpers"
 	"gopkg.in/yaml.v2"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -164,25 +165,39 @@ func (instance *Instance) loadStatuses() error {
 
 func (instance *Instance) pipeKustomizeToKubectl(suppressOutput bool, args ...string) ([]byte, error) {
 	instanceDir := instance.InstanceDir
-	emptybytes := []byte{}
+	emptyBytes := []byte{}
 
+	// run kustomize build
 	kustomizeCmd := exec.Command("kustomize", "build", instanceDir)
 	stdout, err := kustomizeCmd.StdoutPipe()
 	if err != nil {
-		return emptybytes, err
+		return emptyBytes, err
 	}
 	stderr, err := kustomizeCmd.StderrPipe()
 	if err != nil {
-		return emptybytes, err
+		return emptyBytes, err
 	}
 	if err := kustomizeCmd.Start(); err != nil {
-		return emptybytes, err
+		return emptyBytes, err
 	}
+
+	// check for empty stdout from kustomizeCmd
+	buffer := new(bytes.Buffer)
+	buffer.ReadFrom(stdout)
+	stdout = ioutil.NopCloser(bytes.NewBuffer(buffer.Bytes()))
+	if buffer.String() == "" {
+		msg := fmt.Sprintf("No output from `kustomize build %s`", instanceDir)
+		return []byte(msg), errors.New(msg)
+	}
+
+	// prepare kubetctlCmd
 	kubectlCmd := exec.Command(`kubectl`, args...)
 	stdin, err := kubectlCmd.StdinPipe()
 	if err != nil {
-		return emptybytes, err
+		return emptyBytes, err
 	}
+
+	// in a separate thread, prepare to copy kustomizeCmd stdout to kubectlCmd stdin
 	go func() {
 		defer stdin.Close()
 		_, err = io.Copy(stdin, stdout)
@@ -190,12 +205,18 @@ func (instance *Instance) pipeKustomizeToKubectl(suppressOutput bool, args ...st
 			return // TODO think about this
 		}
 	}()
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(stderr)
+
+	// read kustomizeCmd stderr in case there was an error
+	buffer = new(bytes.Buffer)
+	buffer.ReadFrom(stderr)
+
+	// ensure kustomizeCmd has completed
 	if err := kustomizeCmd.Wait(); err != nil {
-		helpers.PrintExecOutput(buf.Bytes(), "kustomize", `build`, instanceDir)
-		return buf.Bytes(), errors.New(fmt.Sprintf("ERROR running `kustomize build %s`:\n%s%s", instanceDir, strings.TrimSuffix(buf.String(), "\n"), err.Error()))
+		helpers.PrintExecOutput(buffer.Bytes(), "kustomize", `build`, instanceDir)
+		return buffer.Bytes(), errors.New(fmt.Sprintf("ERROR running `kustomize build %s`:\n%s%s", instanceDir, strings.TrimSuffix(buffer.String(), "\n"), err.Error()))
 	}
+
+	// pipe kustomizeCmd into kubectlCmd
 	output, err := kubectlCmd.CombinedOutput()
 	if suppressOutput {
 		helpers.Printf("Ran `kustomize build %s | kubectl %s` and got success\n\n", instanceDir, strings.Join(args, " "))

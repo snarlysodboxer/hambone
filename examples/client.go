@@ -101,9 +101,9 @@ var (
 )
 
 func applyInstance(client pb.InstancesClient) (*pb.Instance, error) {
-	// instance := &pb.Instance{Name: "my-client", KustomizationYaml: kustomizationYaml}
+	instance := &pb.Instance{Name: "my-client", KustomizationYaml: kustomizationYaml}
 	// instance := &pb.Instance{Name: "my-other-client", KustomizationYaml: kustomizationYamlOther}
-	instance := &pb.Instance{Name: "my-third-client", KustomizationYaml: kustomizationYamlThird}
+	// instance := &pb.Instance{Name: "my-third-client", KustomizationYaml: kustomizationYamlThird}
 	instance, err := client.Apply(context.Background(), instance)
 	if err != nil {
 		return instance, err
@@ -155,6 +155,19 @@ func deleteInstance(client pb.InstancesClient) (*pb.Instance, error) {
 	return instance, nil
 }
 
+func atomicDeleteInstance(client pb.InstancesClient) (*pb.Instance, error) {
+	clientName := "my-client"
+	// clientName := "my-other-client"
+	// clientName := "my-third-client"
+	instance := &pb.Instance{Name: clientName}
+	instance.OldInstance = &pb.Instance{Name: clientName, KustomizationYaml: kustomizationYaml}
+	instance, err := client.Delete(context.Background(), instance)
+	if err != nil {
+		return instance, err
+	}
+	return instance, nil
+}
+
 func main() {
 	flag.Parse()
 
@@ -197,6 +210,12 @@ func main() {
 			panic(err)
 		}
 		fmt.Printf("Deleted Instance '%v'\n", instance)
+	case "atomicDeleteInstance":
+		instance, err := atomicDeleteInstance(instancesClient)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Atomically Deleted Instance '%v'\n", instance)
 	default:
 		fmt.Println("Unrecognized action")
 	}
