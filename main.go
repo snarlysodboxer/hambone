@@ -15,7 +15,8 @@ import (
 var (
 	listenAddress = flag.String("listen_address", "127.0.0.1:50051", "The network address upon which the server should listen")
 	instancesDir  = flag.String("instances_dir", "./instances", "The root directory in which to create instance directories")
-	statePlugin   = flag.String("state_store", "etcd", "State store to use, `git` or `etcd`")
+	statePlugin   = flag.String("state_store", "etcd", "State store adapter to use, `git` or `etcd`")
+	etcdEndpoints = flag.String("etcd_endpoints", "http://127.0.0.1:2379", "Comma-separated list of etcd endpoints, only used for `etcd` adapter")
 )
 
 func main() {
@@ -26,7 +27,7 @@ func main() {
 	case "git":
 		stateStore = &git.GitEngine{}
 	case "etcd":
-		stateStore = &etcd.EtcdEngine{}
+		stateStore = &etcd.EtcdEngine{*etcdEndpoints}
 	default:
 		panic("Please choose `git` or `etcd` for state_store option")
 	}

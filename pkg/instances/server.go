@@ -17,7 +17,6 @@ func NewInstancesServer(instancesDir string, stateStore state.StateEngine) *Inst
 
 // Apply adds/updates the given Instance, applies it to Kubernetes, and commits the changes, rolling back as necessary
 func (server *InstancesServer) Apply(ctx context.Context, pbInstance *pb.Instance) (*pb.Instance, error) {
-	// TODO put a mutex Lock around this?
 	instance := NewInstance(pbInstance, server)
 	err := instance.apply()
 	if err != nil {
@@ -39,7 +38,6 @@ func (server *InstancesServer) Get(ctx context.Context, getOptions *pb.GetOption
 // Delete deletes an Instance from Kubernetes and then from the repo
 func (server *InstancesServer) Delete(ctx context.Context, pbInstance *pb.Instance) (*pb.Instance, error) {
 	instance := NewInstance(pbInstance, server)
-	// TODO put a mutex Lock around this?
 	err := instance.delete()
 	if err != nil {
 		return pbInstance, err

@@ -124,7 +124,7 @@ func (updater *GitUpdater) Init() error {
 	// check for tracked changes
 	args := []string{`diff`, `--exit-code`, `--`, instanceFile}
 	output, err := exec.Command("git", args...).CombinedOutput()
-	helpers.PrintExecOutput(output, "git", args...)
+	helpers.DebugExecOutput(output, "git", args...)
 	if err != nil {
 		return errors.New(fmt.Sprintf("There are tracked uncommitted changes for this Instance! This should not happen and could indicate a bug. Fix this manually:\n%s\n", helpers.Indent(output)))
 	}
@@ -132,7 +132,7 @@ func (updater *GitUpdater) Init() error {
 	test := fmt.Sprintf("git ls-files --exclude-standard --others %s", instanceFile)
 	args = []string{`-c`, fmt.Sprintf("test -z $(%s)", test)}
 	output, err = exec.Command("sh", args...).CombinedOutput()
-	helpers.PrintExecOutput(output, "sh", args...)
+	helpers.DebugExecOutput(output, "sh", args...)
 	if err != nil {
 		return errors.New("There are untracked uncommitted changes for this Instance! This should not happen and could indicate a bug. Fix this manually.")
 	}
@@ -152,7 +152,7 @@ func (updater *GitUpdater) Init() error {
 	if err := ioutil.WriteFile(instanceFile, []byte(updater.Instance.KustomizationYaml), 0644); err != nil {
 		return err
 	}
-	helpers.Printf("Wrote `%s` with contents:\n\t%s\n", instanceFile, helpers.Indent([]byte(updater.Instance.KustomizationYaml)))
+	helpers.Debugf("Wrote `%s` with contents:\n\t%s\n", instanceFile, helpers.Indent([]byte(updater.Instance.KustomizationYaml)))
 
 	return nil
 }
@@ -171,11 +171,11 @@ func (updater *GitUpdater) Commit() error {
 	// check if there's anything to commit
 	args := []string{`diff`, `--exit-code`, instanceFile}
 	output, err := exec.Command("git", args...).CombinedOutput()
-	helpers.PrintExecOutput(output, "git", args...)
+	helpers.DebugExecOutput(output, "git", args...)
 	test := fmt.Sprintf("git ls-files --exclude-standard --others %s", instanceFile)
 	args = []string{`-c`, fmt.Sprintf("test -z $(%s)", test)}
 	output, untrackedErr := exec.Command("sh", args...).CombinedOutput()
-	helpers.PrintExecOutput(output, "sh", args...)
+	helpers.DebugExecOutput(output, "sh", args...)
 	if err != nil || untrackedErr != nil {
 		// Changes to commit
 
@@ -228,7 +228,7 @@ func (deleter *GitDeleter) Init() error {
 	// check for tracked changes
 	args := []string{`diff`, `--exit-code`, `--`, instanceFile}
 	output, err = exec.Command("git", args...).CombinedOutput()
-	helpers.PrintExecOutput(output, "git", args...)
+	helpers.DebugExecOutput(output, "git", args...)
 	if err != nil {
 		return errors.New(fmt.Sprintf("There are tracked uncommitted changes for this Instance! This should not happen and could indicate a bug. Fix this manually:\n%s\n", helpers.Indent(output)))
 	}
@@ -236,7 +236,7 @@ func (deleter *GitDeleter) Init() error {
 	test := fmt.Sprintf("git ls-files --exclude-standard --others %s", instanceFile)
 	args = []string{`-c`, fmt.Sprintf("test -z $(%s)", test)}
 	output, err = exec.Command("sh", args...).CombinedOutput()
-	helpers.PrintExecOutput(output, "sh", args...)
+	helpers.DebugExecOutput(output, "sh", args...)
 	if err != nil {
 		return errors.New("There are untracked uncommitted changes for this Instance! This should not happen and could indicate a bug. Fix this manually.")
 	}
@@ -260,12 +260,12 @@ func (deleter *GitDeleter) Commit() error {
 	if err != nil {
 		return helpers.NewExecError(err, output, "git", "rm", instanceFile)
 	}
-	helpers.PrintExecOutput(output, "git", "rm", instanceFile)
+	helpers.DebugExecOutput(output, "git", "rm", instanceFile)
 
 	// git commit
 	args := []string{"commit", "-m", fmt.Sprintf(`Automate hambone delete for %s`, deleter.Instance.Name)}
 	output, err = exec.Command("git", args...).CombinedOutput()
-	helpers.PrintExecOutput(output, "git", args...)
+	helpers.DebugExecOutput(output, "git", args...)
 	if err != nil {
 		return errors.New(fmt.Sprintf("ERROR with `git %s`, retry manually!\n%s%s", strings.Join(args, " "), err.Error(), helpers.Indent(output)))
 	}
@@ -273,7 +273,7 @@ func (deleter *GitDeleter) Commit() error {
 	// TODO think about retries here and other places
 	// git push
 	output, err = exec.Command("git", "push").CombinedOutput()
-	helpers.PrintExecOutput(output, "git", "push")
+	helpers.DebugExecOutput(output, "git", "push")
 	if err != nil {
 		return errors.New(fmt.Sprintf("ERROR with `git push`, retry manually!\n%s%s", err.Error(), helpers.Indent(output)))
 	}
@@ -283,7 +283,7 @@ func (deleter *GitDeleter) Commit() error {
 
 func rollbackCommand(instanceDir, instanceFile, cmd string, args ...string) ([]byte, error) {
 	output, err := exec.Command(cmd, args...).CombinedOutput()
-	helpers.PrintExecOutput(output, cmd, args...)
+	helpers.DebugExecOutput(output, cmd, args...)
 	if err != nil {
 		return output, rollbackAndError(instanceDir, instanceFile, err)
 	}

@@ -10,6 +10,7 @@ import (
 	pb "github.com/snarlysodboxer/hambone/generated"
 	"github.com/snarlysodboxer/hambone/pkg/helpers"
 	"github.com/snarlysodboxer/hambone/pkg/state"
+	"strings"
 	"time"
 )
 
@@ -21,12 +22,16 @@ const (
 
 var (
 	StateStore EtcdEngine
-	endpoints  = []string{"http://127.0.0.1:2379"} // TODO
+	endpoints  = []string{}
 )
 
-type EtcdEngine struct{}
+type EtcdEngine struct {
+	EndpointsString string
+}
 
 func (engine *EtcdEngine) Init() error {
+	// parse and set endpoints
+	endpoints = strings.Split(engine.EndpointsString, ",")
 	return nil
 }
 
@@ -58,8 +63,8 @@ func (getter *EtcdGetter) Run() error {
 	if err != nil {
 		return err
 	}
-	helpers.Println("Created clientV3")
-	defer func() { clientV3.Close(); helpers.Println("Closed clientV3") }()
+	helpers.Debugln("Created clientV3")
+	defer func() { clientV3.Close(); helpers.Debugln("Closed clientV3") }()
 	kvClient := clientv3.NewKV(clientV3)
 
 	// get key-values
@@ -108,9 +113,9 @@ type EtcdUpdater struct {
 	*pb.Instance
 	instanceDir  string
 	instanceFile string
-	etcdClient   *clientv3.Client
-	etcdSession  *concurrency.Session
-	etcdMutex    *concurrency.Mutex
+	clientV3     *clientv3.Client
+	session      *concurrency.Session
+	mutex        *concurrency.Mutex
 }
 
 // Init is expected to do any init related to the state store,
@@ -124,18 +129,18 @@ func (updater *EtcdUpdater) Init() error {
 	if err != nil {
 		return err
 	}
-	helpers.Println("Created clientV3")
-	updater.etcdClient = clientV3
+	helpers.Debugln("Created clientV3")
+	updater.clientV3 = clientV3
 	kvClient := clientv3.NewKV(clientV3)
 
 	// take out an etcd lock
 	session, mutex, err := getSessionAndMutex(clientV3, instanceKey)
 	if err != nil {
 		clientV3.Close()
-		helpers.Println("Closed clientV3")
+		helpers.Debugln("Closed clientV3")
 		return err
 	}
-	updater.etcdSession, updater.etcdMutex = session, mutex
+	updater.session, updater.mutex = session, mutex
 
 	// ensure OldInstance passed in request equals current Instance in etcd
 	if err := oldInstanceEqualsCurrentInstanceIfSet(kvClient, instanceKey, updater.Instance.GetOldInstance()); err != nil {
@@ -164,7 +169,7 @@ func (updater *EtcdUpdater) Commit() (erR error) {
 	// at this point, OldInstance matches if present, we have a lock, and
 	//   it doesn't matter if the key is pre-existing or not, so just put
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-	_, err := updater.etcdClient.Put(ctx, instanceKey, updater.Instance.KustomizationYaml)
+	_, err := updater.clientV3.Put(ctx, instanceKey, updater.Instance.KustomizationYaml)
 	cancel()
 	if err != nil {
 		return err
@@ -175,17 +180,16 @@ func (updater *EtcdUpdater) Commit() (erR error) {
 }
 
 func (updater *EtcdUpdater) cleanUp(err error) error {
-	return cleanUp(updater.etcdMutex, updater.etcdSession, updater.etcdClient, err)
+	return cleanUp(updater.mutex, updater.session, updater.clientV3, err)
 }
 
 type EtcdDeleter struct {
 	*pb.Instance
 	instanceDir  string
 	instanceFile string
-	// TODO shorten these names
-	etcdClient  *clientv3.Client
-	etcdSession *concurrency.Session
-	etcdMutex   *concurrency.Mutex
+	clientV3     *clientv3.Client
+	session      *concurrency.Session
+	mutex        *concurrency.Mutex
 }
 
 // Init is expected to do any init related to the state store,
@@ -199,8 +203,8 @@ func (deleter *EtcdDeleter) Init() error {
 	if err != nil {
 		return err
 	}
-	helpers.Println("Created clientV3")
-	deleter.etcdClient = clientV3
+	helpers.Debugln("Created clientV3")
+	deleter.clientV3 = clientV3
 	kvClient := clientv3.NewKV(clientV3)
 
 	// ensure Instance exists in etcd
@@ -209,12 +213,12 @@ func (deleter *EtcdDeleter) Init() error {
 		Commit()
 	if err != nil {
 		clientV3.Close()
-		helpers.Println("Closed clientV3")
+		helpers.Debugln("Closed clientV3")
 		return err
 	}
 	if !txnResponse.Succeeded { // if !key exists
 		clientV3.Close()
-		helpers.Println("Closed clientV3")
+		helpers.Debugln("Closed clientV3")
 		return errors.New(fmt.Sprintf("No etcd key found for %s", deleter.Instance.Name))
 	}
 
@@ -222,10 +226,10 @@ func (deleter *EtcdDeleter) Init() error {
 	session, mutex, err := getSessionAndMutex(clientV3, instanceKey)
 	if err != nil {
 		clientV3.Close()
-		helpers.Println("Closed clientV3")
+		helpers.Debugln("Closed clientV3")
 		return err
 	}
-	deleter.etcdSession, deleter.etcdMutex = session, mutex
+	deleter.session, deleter.mutex = session, mutex
 
 	// ensure passed OldInstance equals current Instance in etcd
 	if err := oldInstanceEqualsCurrentInstanceIfSet(kvClient, instanceKey, deleter.Instance.GetOldInstance()); err != nil {
@@ -255,7 +259,6 @@ func (deleter *EtcdDeleter) Init() error {
 
 // Cancel is expected to clean up any mess, and re-add the kustomization.yaml file/dir
 func (deleter *EtcdDeleter) Cancel(err error) error {
-	// TODO do we need to add file here?
 	return deleter.cleanUp(err)
 }
 
@@ -267,7 +270,7 @@ func (deleter *EtcdDeleter) Commit() (erR error) {
 	// at this point, OldInstance matches if present, we have a lock, and
 	//   the key exists, so just delete
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
-	_, err := deleter.etcdClient.Delete(ctx, instanceKey, clientv3.WithPrefix())
+	_, err := deleter.clientV3.Delete(ctx, instanceKey, clientv3.WithPrefix())
 	cancel()
 	if err != nil {
 		return err
@@ -276,7 +279,7 @@ func (deleter *EtcdDeleter) Commit() (erR error) {
 }
 
 func (deleter *EtcdDeleter) cleanUp(err error) error {
-	return cleanUp(deleter.etcdMutex, deleter.etcdSession, deleter.etcdClient, err)
+	return cleanUp(deleter.mutex, deleter.session, deleter.clientV3, err)
 }
 
 func getInstanceKey(name string) string {
@@ -293,15 +296,15 @@ func getSessionAndMutex(clientV3 *clientv3.Client, instanceKey string) (*concurr
 	if err != nil {
 		return &concurrency.Session{}, &concurrency.Mutex{}, err
 	}
-	helpers.Println("Created Concurrency session")
+	helpers.Debugln("Created Concurrency session")
 
 	mutex := concurrency.NewMutex(session, instanceKey)
 	if err = mutex.Lock(context.TODO()); err != nil {
 		session.Close()
-		helpers.Println("Closed Concurrency session")
+		helpers.Debugln("Closed Concurrency session")
 		return session, &concurrency.Mutex{}, err
 	}
-	helpers.Println("Obtained lock for", instanceKey)
+	helpers.Debugln("Obtained lock for", instanceKey)
 
 	return session, mutex, nil
 }
@@ -312,17 +315,17 @@ func cleanUp(mutex *concurrency.Mutex, session *concurrency.Session, clientV3 *c
 		if err != nil {
 			session.Close()
 			clientV3.Close()
-			helpers.Println("Closed Concurrency Session and clientV3")
+			helpers.Debugln("Closed Concurrency Session and clientV3")
 			return errors.New(fmt.Sprintf("ERROR releasing lock after another error: %s\nOriginal Error:\n%s\n", innerError.Error(), err.Error()))
 		}
 		session.Close()
 		clientV3.Close()
-		helpers.Println("Closed Concurrency Session and clientV3")
+		helpers.Debugln("Closed Concurrency Session and clientV3")
 		return errors.New(fmt.Sprintf("ERROR releasing lock: %s\n", innerError.Error()))
 	}
 	session.Close()
 	clientV3.Close()
-	helpers.Printf("Released lock for %s, closed Concurrency Session and clientV3\n", key)
+	helpers.Debugf("Released lock for %s, closed Concurrency Session and clientV3\n", key)
 
 	return err
 }

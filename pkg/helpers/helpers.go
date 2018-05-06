@@ -18,7 +18,7 @@ func Indent(output []byte) string {
 }
 
 func NewExecError(err error, output []byte, cmd string, args ...string) error {
-	PrintExecOutput(output, cmd, args...)
+	DebugExecOutput(output, cmd, args...)
 	c := fmt.Sprintf("%s %s", cmd, strings.Join(args, " "))
 	return errors.New(fmt.Sprintf("ERROR running `%s`:\n\t%s: %s", c, err.Error(), string(output)))
 }
@@ -51,7 +51,7 @@ func MkdirFile(filePath, contents string) error {
 	if err := ioutil.WriteFile(filePath, []byte(contents), 0644); err != nil {
 		return err
 	}
-	Printf("Wrote `%s` with contents:\n\t%s\n", filePath, Indent([]byte(contents)))
+	Debugf("Wrote `%s` with contents:\n\t%s\n", filePath, Indent([]byte(contents)))
 
 	return nil
 }

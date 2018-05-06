@@ -2,8 +2,8 @@
 
 package helpers
 
-func Println(_ ...interface{}) {}
+func Debugln(_ ...interface{}) {}
 
-func Printf(_ string, _ ...interface{}) {}
+func Debugf(_ string, _ ...interface{}) {}
 
-func PrintExecOutput(_ []byte, _ string, _ ...string) {}
+func DebugExecOutput(_ []byte, _ string, _ ...string) {}
