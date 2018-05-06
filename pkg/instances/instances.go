@@ -9,12 +9,10 @@ import (
 	"gopkg.in/yaml.v2"
 	"io"
 	"io/ioutil"
-	"os"
+	"log"
 	"os/exec"
 	"strings"
 )
-
-// TODO log errors
 
 type GetRequest struct {
 	*pb.GetOptions
@@ -137,6 +135,7 @@ type ItemStatus struct {
 func (instance *Instance) loadStatuses() error {
 	output, err := instance.pipeKustomizeToKubectl(true, `get`, `-o`, `yaml`, `-f`, `-`)
 	if err != nil {
+		log.Println(err)
 		instance.Instance.StatusesErrorMessage = string(output)
 		return err
 	}
@@ -171,13 +170,16 @@ func (instance *Instance) pipeKustomizeToKubectl(suppressOutput bool, args ...st
 	kustomizeCmd := exec.Command("kustomize", "build", instanceDir)
 	stdout, err := kustomizeCmd.StdoutPipe()
 	if err != nil {
+		log.Println(err)
 		return emptyBytes, err
 	}
 	stderr, err := kustomizeCmd.StderrPipe()
 	if err != nil {
+		log.Println(err)
 		return emptyBytes, err
 	}
 	if err := kustomizeCmd.Start(); err != nil {
+		log.Println(err)
 		return emptyBytes, err
 	}
 
@@ -187,13 +189,16 @@ func (instance *Instance) pipeKustomizeToKubectl(suppressOutput bool, args ...st
 	stdout = ioutil.NopCloser(bytes.NewBuffer(buffer.Bytes()))
 	if buffer.String() == "" {
 		msg := fmt.Sprintf("No output from `kustomize build %s`", instanceDir)
-		return []byte(msg), errors.New(msg)
+		err = errors.New(msg)
+		log.Println(err)
+		return []byte(msg), err
 	}
 
 	// prepare kubetctlCmd
 	kubectlCmd := exec.Command(`kubectl`, args...)
 	stdin, err := kubectlCmd.StdinPipe()
 	if err != nil {
+		log.Println(err)
 		return emptyBytes, err
 	}
 
@@ -202,6 +207,7 @@ func (instance *Instance) pipeKustomizeToKubectl(suppressOutput bool, args ...st
 		defer stdin.Close()
 		_, err = io.Copy(stdin, stdout)
 		if err != nil {
+			log.Println(err)
 			return // TODO think about this
 		}
 	}()
@@ -245,18 +251,4 @@ func namePrefixMatches(instance *pb.Instance) error {
 		return errors.New(fmt.Sprintf("Instance Name does not match `namePrefix`, got: %s, want: %s", kYaml.NamePrefix, hyphened))
 	}
 	return nil
-}
-
-func isEmpty(path string) (bool, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return false, err
-	}
-	defer file.Close()
-
-	_, err = file.Readdirnames(1)
-	if err == io.EOF {
-		return true, nil
-	}
-	return false, err
 }

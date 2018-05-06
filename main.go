@@ -2,13 +2,13 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	pb "github.com/snarlysodboxer/hambone/generated"
 	"github.com/snarlysodboxer/hambone/pkg/instances"
 	"github.com/snarlysodboxer/hambone/pkg/state"
 	"github.com/snarlysodboxer/hambone/pkg/state/etcd"
 	"github.com/snarlysodboxer/hambone/pkg/state/git"
 	"google.golang.org/grpc"
+	"log"
 	"net"
 )
 
@@ -44,7 +44,7 @@ func main() {
 	instancesServer := instances.NewInstancesServer(*instancesDir, stateStore)
 	pb.RegisterInstancesServer(grpcServer, instancesServer)
 
-	fmt.Printf("Listening on %s\n", *listenAddress)
+	log.Printf("Listening on %s\n", *listenAddress)
 	err = grpcServer.Serve(listener)
 	if err != nil {
 		panic(err)

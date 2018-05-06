@@ -3,7 +3,9 @@ package helpers
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,14 +46,30 @@ func GetInstanceDirFile(instancesDir, instanceName string) (string, string) {
 func MkdirFile(filePath, contents string) error {
 	// mkdir
 	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+		log.Println(err)
 		return err
 	}
 
 	// write file
 	if err := ioutil.WriteFile(filePath, []byte(contents), 0644); err != nil {
+		log.Println(err)
 		return err
 	}
 	Debugf("Wrote `%s` with contents:\n\t%s\n", filePath, Indent([]byte(contents)))
 
 	return nil
+}
+
+func IsEmpty(path string) (bool, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return false, err
+	}
+	defer file.Close()
+
+	_, err = file.Readdirnames(1)
+	if err == io.EOF {
+		return true, nil
+	}
+	return false, err
 }

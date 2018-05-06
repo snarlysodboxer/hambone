@@ -10,6 +10,7 @@ import (
 	pb "github.com/snarlysodboxer/hambone/generated"
 	"github.com/snarlysodboxer/hambone/pkg/helpers"
 	"github.com/snarlysodboxer/hambone/pkg/state"
+	"log"
 	"strings"
 	"time"
 )
@@ -61,6 +62,7 @@ func (getter *EtcdGetter) Run() error {
 	// setup client
 	clientV3, err := clientv3.New(clientv3.Config{Endpoints: endpoints, DialTimeout: dialTimeout})
 	if err != nil {
+		log.Println(err)
 		return err
 	}
 	helpers.Debugln("Created clientV3")
@@ -78,6 +80,7 @@ func (getter *EtcdGetter) Run() error {
 	}
 	cancel()
 	if err != nil {
+		log.Println(err)
 		return err
 	}
 
@@ -127,6 +130,7 @@ func (updater *EtcdUpdater) Init() error {
 	// setup client
 	clientV3, err := clientv3.New(clientv3.Config{Endpoints: endpoints, DialTimeout: dialTimeout})
 	if err != nil {
+		log.Println(err)
 		return err
 	}
 	helpers.Debugln("Created clientV3")
@@ -136,6 +140,7 @@ func (updater *EtcdUpdater) Init() error {
 	// take out an etcd lock
 	session, mutex, err := getSessionAndMutex(clientV3, instanceKey)
 	if err != nil {
+		log.Println(err)
 		clientV3.Close()
 		helpers.Debugln("Closed clientV3")
 		return err
@@ -172,6 +177,7 @@ func (updater *EtcdUpdater) Commit() (erR error) {
 	_, err := updater.clientV3.Put(ctx, instanceKey, updater.Instance.KustomizationYaml)
 	cancel()
 	if err != nil {
+		log.Println(err)
 		return err
 	}
 
@@ -201,6 +207,7 @@ func (deleter *EtcdDeleter) Init() error {
 	// setup client
 	clientV3, err := clientv3.New(clientv3.Config{Endpoints: endpoints, DialTimeout: dialTimeout})
 	if err != nil {
+		log.Println(err)
 		return err
 	}
 	helpers.Debugln("Created clientV3")
@@ -212,6 +219,7 @@ func (deleter *EtcdDeleter) Init() error {
 		If(clientv3util.KeyExists(instanceKey)).
 		Commit()
 	if err != nil {
+		log.Println(err)
 		clientV3.Close()
 		helpers.Debugln("Closed clientV3")
 		return err
@@ -225,6 +233,7 @@ func (deleter *EtcdDeleter) Init() error {
 	// take out an etcd lock
 	session, mutex, err := getSessionAndMutex(clientV3, instanceKey)
 	if err != nil {
+		log.Println(err)
 		clientV3.Close()
 		helpers.Debugln("Closed clientV3")
 		return err
@@ -242,10 +251,13 @@ func (deleter *EtcdDeleter) Init() error {
 	response, err := kvClient.Get(ctx, instanceKey)
 	cancel()
 	if err != nil {
+		log.Println(err)
 		return deleter.cleanUp(err)
 	}
 	if len(response.Kvs) != 1 {
-		return errors.New(fmt.Sprintf("Expected 1 key-value set, got %d", len(response.Kvs)))
+		err = errors.New(fmt.Sprintf("Expected 1 key-value set, got %d", len(response.Kvs)))
+		log.Println(err)
+		return err
 	}
 	deleter.Instance.KustomizationYaml = string(response.Kvs[0].Value)
 
@@ -273,6 +285,7 @@ func (deleter *EtcdDeleter) Commit() (erR error) {
 	_, err := deleter.clientV3.Delete(ctx, instanceKey, clientv3.WithPrefix())
 	cancel()
 	if err != nil {
+		log.Println(err)
 		return err
 	}
 	return nil
@@ -294,12 +307,14 @@ func getSessionAndMutex(clientV3 *clientv3.Client, instanceKey string) (*concurr
 	// TODO consider setting lease expiration
 	session, err := concurrency.NewSession(clientV3)
 	if err != nil {
+		log.Println(err)
 		return &concurrency.Session{}, &concurrency.Mutex{}, err
 	}
 	helpers.Debugln("Created Concurrency session")
 
 	mutex := concurrency.NewMutex(session, instanceKey)
 	if err = mutex.Lock(context.TODO()); err != nil {
+		log.Println(err)
 		session.Close()
 		helpers.Debugln("Closed Concurrency session")
 		return session, &concurrency.Mutex{}, err
@@ -312,6 +327,7 @@ func getSessionAndMutex(clientV3 *clientv3.Client, instanceKey string) (*concurr
 func cleanUp(mutex *concurrency.Mutex, session *concurrency.Session, clientV3 *clientv3.Client, err error) error {
 	key := mutex.Key()
 	if innerError := mutex.Unlock(context.TODO()); innerError != nil {
+		log.Println(err)
 		if err != nil {
 			session.Close()
 			clientV3.Close()
@@ -336,6 +352,7 @@ func oldInstanceEqualsCurrentInstanceIfSet(kvClient clientv3.KV, instanceKey str
 			If(clientv3util.KeyExists(instanceKey)).
 			Commit()
 		if err != nil {
+			log.Println(err)
 			return err
 		}
 		if txnResponse.Succeeded { // if key exists
@@ -344,10 +361,13 @@ func oldInstanceEqualsCurrentInstanceIfSet(kvClient clientv3.KV, instanceKey str
 			response, err := kvClient.Get(ctx, instanceKey)
 			cancel()
 			if err != nil {
+				log.Println(err)
 				return err
 			}
 			if len(response.Kvs) != 1 {
-				return errors.New(fmt.Sprintf("Expected 1 key-value set, got %d", len(response.Kvs)))
+				err = errors.New(fmt.Sprintf("Expected 1 key-value set, got %d", len(response.Kvs)))
+				log.Println(err)
+				return err
 			}
 			currentValue := response.Kvs[0].Value
 			if string(currentValue) != oldInstance.KustomizationYaml {
