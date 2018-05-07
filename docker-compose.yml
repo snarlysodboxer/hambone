@@ -1,0 +1,23 @@
+version: '3'
+services:
+  etcd:
+    image: quay.io/coreos/etcd:latest
+    restart: always
+    entrypoint:
+      - /usr/local/bin/etcd
+    command:
+      - --data-dir=/etcd-data
+      - --name=node1
+      - --initial-advertise-peer-urls=http://0.0.0.0:2380
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --advertise-client-urls=http://0.0.0.0:2379
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --initial-cluster=node1=http://0.0.0.0:2380
+    ports:
+      - "127.0.0.1:2379:2379"
+      - "127.0.0.1:2380:2380"
+    volumes:
+      - data-volume:/etcd-data
+
+volumes:
+  data-volume:

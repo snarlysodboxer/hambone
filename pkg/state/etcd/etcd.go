@@ -151,7 +151,6 @@ func (updater *EtcdUpdater) Init() error {
 	if err := oldInstanceEqualsCurrentInstanceIfSet(kvClient, instanceKey, updater.Instance.GetOldInstance()); err != nil {
 		return updater.cleanUp(err)
 	}
-	updater.Instance.OldInstance = nil // don't return OldInstance in response
 
 	// mkdir and write file
 	if err := helpers.MkdirFile(instanceFile, updater.Instance.KustomizationYaml); err != nil {
@@ -244,7 +243,6 @@ func (deleter *EtcdDeleter) Init() error {
 	if err := oldInstanceEqualsCurrentInstanceIfSet(kvClient, instanceKey, deleter.Instance.GetOldInstance()); err != nil {
 		return deleter.cleanUp(err)
 	}
-	deleter.Instance.OldInstance = nil // don't return OldInstance in response
 
 	// load kustomizationYaml from etcd
 	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)

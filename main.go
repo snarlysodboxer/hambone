@@ -12,6 +12,8 @@ import (
 	"net"
 )
 
+// TODO catch SIGTERM and shutdown gRPC server
+
 var (
 	listenAddress = flag.String("listen_address", "127.0.0.1:50051", "The network address upon which the server should listen")
 	instancesDir  = flag.String("instances_dir", "./instances", "The root directory in which to create instance directories")

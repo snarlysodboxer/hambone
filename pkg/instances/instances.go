@@ -85,6 +85,9 @@ func (instance *Instance) apply() error {
 	// fill in statuses
 	_ = instance.loadStatuses()
 
+	// don't return OldInstance in response
+	instance.Instance.OldInstance = nil
+
 	return nil
 }
 
@@ -105,6 +108,9 @@ func (instance *Instance) delete() error {
 	if err != nil {
 		return err
 	}
+
+	// don't return OldInstance in response
+	instance.Instance.OldInstance = nil
 
 	return nil
 }
