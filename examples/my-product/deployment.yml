@@ -1,0 +1,28 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: my-product
+  namespace: default
+  labels:
+    app: my-product
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 2
+  template:
+    metadata:
+      labels:
+        app: my-product
+    spec:
+      restartPolicy: Always
+      containers:
+      - name: sleeper
+        image: alpine:latest
+        imagePullPolicy: IfNotPresent
+        command:
+          - sleep
+        args:
+          - '50000'

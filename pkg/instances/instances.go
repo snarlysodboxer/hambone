@@ -14,6 +14,8 @@ import (
 	"strings"
 )
 
+// TODO figure out why helpful error is not returned when the k8s API server is unavailable
+
 type GetRequest struct {
 	*pb.GetOptions
 	*pb.InstanceList

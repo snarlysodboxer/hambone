@@ -7,6 +7,7 @@ import (
 	"github.com/snarlysodboxer/hambone/pkg/state"
 	"github.com/snarlysodboxer/hambone/pkg/state/etcd"
 	"github.com/snarlysodboxer/hambone/pkg/state/git"
+	_ "google.golang.org/genproto/googleapis/api/annotations" // dummy import for dep
 	"google.golang.org/grpc"
 	"log"
 	"net"
@@ -16,9 +17,9 @@ import (
 
 var (
 	listenAddress = flag.String("listen_address", "127.0.0.1:50051", "The network address upon which the server should listen")
-	instancesDir  = flag.String("instances_dir", "./instances", "The root directory in which to create instance directories")
-	statePlugin   = flag.String("state_store", "etcd", "State store adapter to use, `git` or `etcd`")
-	etcdEndpoints = flag.String("etcd_endpoints", "http://127.0.0.1:2379", "Comma-separated list of etcd endpoints, only used for `etcd` adapter")
+	instancesDir  = flag.String("instances_dir", "./instances", "The directory in which to create instance directories")
+	statePlugin   = flag.String("state_store", "etcd", "State store adapter to use, git or etcd")
+	etcdEndpoints = flag.String("etcd_endpoints", "http://127.0.0.1:2379", "Comma-separated list of etcd endpoints, only used for etcd adapter")
 )
 
 func main() {

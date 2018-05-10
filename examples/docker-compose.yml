@@ -18,27 +18,19 @@ services:
     network_mode: host
 
   watcher:
-    image: hambone-watcher:latest
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
+    image: snarlysodboxer/hambone:v1.7.3
     restart: always
-    working_dir: /go/src/github.com/snarlysodboxer/hambone/examples
     entrypoint:
-      - watcher
+      - hambone
     command:
-      # - -tags # TODO watcher doesn't allow passing flags to `go build`, figure this out
-      # - debug
-      - -run
-      - github.com/snarlysodboxer/hambone
       - --listen_address
       - "127.0.0.1:50051"
       - --state_store
       - etcd
-      - --etcd_endpoints
+      - -etcd_endpoints
       - "http://127.0.0.1:2379"
     volumes:
-      - ./:/go/src/github.com/snarlysodboxer/hambone
+      - ./:/hambone
     network_mode: host # to be able to reach minikube
 
 volumes:

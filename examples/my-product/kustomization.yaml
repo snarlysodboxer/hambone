@@ -1,0 +1,14 @@
+commonLabels:
+  app: my-product
+
+commonAnnotations:
+  oncall: engineering
+
+resources:
+- deployment.yml
+
+configMapGenerator:
+- name: my-product
+  files:
+  - files/nginx.conf
+
