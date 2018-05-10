@@ -27,11 +27,11 @@ You want to practice [Declarative Application Management](https://github.com/kub
 ### Dependencies
 
 * The following external executables are needed
-    * `sh`
     * `kubectl`
     * `kustomize`
 * For the State Store adapter (either or)
 	* Git
+        * `sh`
 	    * `git` (installed and configured to auth to your repo)
 	    * `test`
 	* etcd
@@ -39,23 +39,27 @@ You want to practice [Declarative Application Management](https://github.com/kub
 * Directory
     * `hambone` expects to be executed from the same directory as you would run `kustomize`.
 * Base(s)
-    * You must create your own `kustomize` base(s) to use in your Instances, either manually on the filesystem, or through the `CustomFile` call/endpoint (`CustomFile` is TODO). Here are some [examples](https://github.com/snarlysodboxer/hambone/tree/master/examples).
+    * You must create your own `kustomize` base(s) to use in your Instances, either manually on the filesystem, or through the `CustomFile` call/endpoint (`CustomFile` is TODO). See this working [example base](https://github.com/snarlysodboxer/hambone/tree/master/examples).
 
 ### Usage
 
-#### Run in Docker
-
 See `hambone --help` for configuration flags.
 
-* `docker run -it --rm --network host -v ${PWD}:/hambone snarlysodboxer/hambone:v1.7.3` - `v1.7.3` corresponds to the `kubectl`/Kubernetes version.
+#### Run a Docker container
 
-One could build an image `FROM snarlysodboxer/hambone:v1.7.3` and add a Git repository containing `kustomize` base(s), and then mount in credentials for `kubectl` and if needed `git`.
+* `docker run -it --rm --network host -v ${PWD}:/hambone snarlysodboxer/hambone:v1.7.3` - The `v1.7.3` tag corresponds to the `kubectl`/Kubernetes version. See [Docker repo](https://hub.docker.com/r/snarlysodboxer/hambone/) for other tags.
 
-#### Get the repo and build it yourself
+One could build an image `FROM snarlysodboxer/hambone:<tag>` and add a Git repository containing `kustomize` base(s), and then mount in credentials for `kubectl` and if needed `git`.
+
+#### Run the example from the repo
+
     go get github.com/snarlysodboxer/hambone
     cd $GOPATH/src/github.com/snarlysodboxer/hambone/examples
+
 ###### With Docker and docker-compose
+
     docker-compose up
+
 ###### Without Docker
    * Setup prerequisites
         * Install and setup git, or install and run etcd.
@@ -69,13 +73,12 @@ One could build an image `FROM snarlysodboxer/hambone:v1.7.3` and add a Git repo
 ### Develop
 
 * TODO
-* It's easy to test against minikube; install and start it, and ensure your kubectl config is pointed to it.
+* It works well to test against minikube; install and start it, and ensure your kubectl config is pointed to it.
 * If you change the proto file, run `./bin/build-stubs.sh` to regenerate the Protocol Buffer code.
 
 ### Roadmap
 
 * Create example Kubernetes specs for running the app
-* Create example Kustomize base specs
 * Add metrics
 * Document better
 * Tests
