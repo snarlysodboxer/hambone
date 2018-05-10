@@ -11,19 +11,18 @@ You want to practice [Declarative Application Management](https://github.com/kub
 ### Features
 
 * Supports multiple State Store adapters, currently `etcd` (recommended) and `git`. Additional adapters can be written to fulfill the [Interface](https://github.com/snarlysodboxer/hambone/blob/master/pkg/state/state.go). (PRs welcome!)
-* Follows the 
 * Aims to be as simple as possible, and expects you to do almost all the validation client-side where you can also build in your custom domain logic, or obtain external information for secrets or disk volume IDs, etc.
 * Uses `kubectl apply` and `kustomize build` both of which validate YAML, and `kubectl` validates objects. Care is taken to return meaningful errors.
 * Manages `kustomization.yaml` files ([Instances](docs/glossary.md#instance)) in a structured way, and tracks all changes in the State Store. The API safely rejects any `kustomization.yml` files which are rejected by `kustomize`, `kubectl`, or Kubernetes.
-* The API allows a client to store and retrieve default configurations which can be used when creating new Instances. This allows clients to be written in a way that hides YAML and complexity from the end-user, and so non-technicals can CRUD,  E.G. a customer support/manager facing SPA, or a server side `hambone` client so customers can request their own Instances. This part of the API is TODO.
+* The API enables a client to store and retrieve default configurations which can be used when creating new Instances. This allows clients to be written in a way that hides YAML and complexity from the end-user so non-technicals can CRUD.  E.G. a customer support/manager facing SPA, or a server side `hambone` client so customers can request their own Instances. This part of the API is TODO.
 * Ready to be run in replica in Kubernetes. See examples (TODO).
 
 ### Design
 
 * Consists of a gRPC server (with grpc-gateway JSON adapter TODO)
-* The server can be run either with existing `kustomize` base(s) on the filesystem (such as a git repo,) or base and overlay files can be created and managed in the State Store through the API's `CustomFile` call/endpoint (`CustomFile` is TODO).
+* The server can be run with existing `kustomize` base(s) on the filesystem (such as a git repo,) or base and overlay files can be created and managed in the State Store through the API's `CustomFile` call/endpoint (`CustomFile` is TODO).
 * With the `etcd` adapter, the server is concurrency safe. The `git` adapter makes every attempt, but it's hard to protect against every circumstance. Problems could need manually fixed in (hopefully) rare circumstances.
-* Rather than using the Kubernetes and Git APIs directly, `hambone` takes advantage of  `kustomize` and `kubectl`. This makes it easy to support most versions of Kubernetes/kubectl and Git, and keeps this app simple.
+* Rather than using the Kubernetes and Git APIs directly, `hambone` takes advantage of  `kustomize` and `kubectl`. This makes it easy to support most versions of Kubernetes/kubectl and Git, and keeps the app simple.
 
 ### Dependencies
 
@@ -70,7 +69,7 @@ One could build an image `FROM snarlysodboxer/hambone:v1.7.3` and add a Git repo
 ### Develop
 
 * TODO
-* If you want to test against minikube, install and start it.
+* It's easy to test against minikube; install and start it, and ensure your kubectl config is pointed to it.
 * If you change the proto file, run `./bin/build-stubs.sh` to regenerate the Protocol Buffer code.
 
 ### Roadmap
