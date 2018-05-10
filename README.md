@@ -73,7 +73,8 @@ One could build an image `FROM snarlysodboxer/hambone:<tag>` and add a Git repos
 ### Develop
 
 * TODO
-* It works well to test against minikube; install and start it, and ensure your kubectl config is pointed to it.
+* From the root of the repo, run `docker-compose build`, then `docker-compose up`.
+* Ensure your `~/.kube/config` is pointed to the cluster you want to develop against. I like to use minikube.
 * If you change the proto file, run `./bin/build-stubs.sh` to regenerate the Protocol Buffer code.
 
 ### Roadmap

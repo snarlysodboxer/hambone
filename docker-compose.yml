@@ -25,19 +25,20 @@ services:
     restart: always
     working_dir: /go/src/github.com/snarlysodboxer/hambone/examples
     entrypoint:
-      - watcher
+      - CompileDaemon
     command:
-      # - -tags # TODO watcher doesn't allow passing flags to `go build`, figure this out
-      # - debug
-      - -run
-      - github.com/snarlysodboxer/hambone
-      - --listen_address
-      - "127.0.0.1:50051"
-      - --state_store
-      - etcd
-      - --etcd_endpoints
-      - "http://127.0.0.1:2379"
+      - --directory
+      - ../
+      - --build
+      - "go build --tags debug -o ./hambone github.com/snarlysodboxer/hambone"
+      - --command
+      - "../hambone --listen_address 127.0.0.1:50051 --state_store etcd --etcd_endpoints http://127.0.0.1:2379"
+      - --exclude-dir=.git
+      - --color=true
+      - --log-prefix=false
+      - --graceful-kill=true
     volumes:
+      - ~/.kube:/root/.kube
       - ./:/go/src/github.com/snarlysodboxer/hambone
     network_mode: host # to be able to reach minikube
 

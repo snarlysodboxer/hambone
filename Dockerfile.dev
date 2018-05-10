@@ -1,7 +1,8 @@
 FROM snarlysodboxer/hambone:v1.7.3 as hambone
 
-FROM canthefason/go-watcher:0.2.4-go1.10
-ENV PATH="/usr/local/bin:${PATH}"
+FROM golang:1.10
+ENV CGO_ENABLED=0 GOOS=linux
+RUN go get github.com/githubnemo/CompileDaemon
 COPY --from=hambone /usr/local/bin/hambone /usr/local/bin/hambone
 COPY --from=hambone /usr/local/bin/kustomize /usr/local/bin/kustomize
 COPY --from=hambone /usr/local/bin/kubectl /usr/local/bin/kubectl
