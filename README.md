@@ -9,7 +9,6 @@ You want to practice [Declarative Application Management](https://github.com/kub
 `kustomize` does the heavy lifting, having the concept of a base set of Kubernetes YAML objects which you "kustomize" using "overlay"s (what `hambone` calls "Instances",) allowing you to override any value in the base YAML. `kustomize` isn't however usable by customer service reps, managers, or clients. An API server + clients can solve those needs.
 
 ### Features
-
 * Supports multiple State Store adapters, currently `etcd` (recommended) and `git`. Additional adapters can be written to fulfill the [Interface](https://github.com/snarlysodboxer/hambone/blob/master/pkg/state/state.go). (PRs welcome!)
 * Aims to be as simple as possible, and expects you to do almost all the validation client-side where you can also build in your custom domain logic, or obtain external information for secrets or disk volume IDs, etc.
 * Uses `kubectl apply` and `kustomize build` both of which validate YAML, and `kubectl` validates objects. Care is taken to return meaningful errors.
@@ -18,7 +17,6 @@ You want to practice [Declarative Application Management](https://github.com/kub
 * The API enables a client to store and retrieve default configurations which can be used when creating new Instances. This allows clients to be written in a way that hides YAML and complexity from the end-user so non-technicals can CRUD.  E.G. a customer support/manager facing SPA, or a server side `hambone` client so customers can request their own Instances. This part of the API is TODO.
 * The `etcd` adapter uses [Distributed Locks](https://coreos.com/etcd/docs/latest/dev-guide/api_concurrency_reference_v3.html) for concurrency control.
 * Ready to be run in replica in Kubernetes. See examples (TODO).
-
 ### Design
 
 * Consists of a gRPC server (with grpc-gateway JSON adapter TODO)
@@ -32,16 +30,16 @@ You want to practice [Declarative Application Management](https://github.com/kub
     * `kubectl`
     * `kustomize`
 * For the State Store adapter (either or)
-	* Git
+    * Git
         * `sh`
-	    * `git` (installed and configured to auth to your repo)
-	    * `test`
-	* etcd
-	    * `etcd` version 3
+        * `git` (installed and configured to auth to your repo)
+        * `test`
+    * etcd
+        * `etcd` version 3
 * Directory
     * `hambone` expects to be executed from the same directory as you would run `kustomize`.
 * Base(s)
-    * You must create your own `kustomize` base(s) to use in your Instances, either manually on the filesystem, or through the `CustomFile` call/endpoint (`CustomFile` is TODO). See this working [example base](https://github.com/snarlysodboxer/hambone/tree/master/examples).
+    * You must create your own `kustomize` base(s) to use in your Instances, either manually on the filesystem, or through the `CustomFile` call/endpoint (`CustomFile` is TODO). See the working [example base](https://github.com/snarlysodboxer/hambone/tree/master/examples).
 
 ### Usage
 
@@ -53,35 +51,58 @@ See `hambone --help` for configuration flags.
 
 One could build an image `FROM snarlysodboxer/hambone:<tag>` and add a Git repository containing `kustomize` base(s), and then mount in credentials for `kubectl` and if needed `git`.
 
-#### Run the example from the repo
+#### Run the example
 
     go get github.com/snarlysodboxer/hambone
-    cd $GOPATH/src/github.com/snarlysodboxer/hambone/examples
 
-###### With Docker and docker-compose
+    cd $GOPATH/src/github.com/snarlysodboxer/hambone
 
-    docker-compose up
+##### With Docker and docker-compose
 
-###### Without Docker
-   * Setup prerequisites
-        * Install and setup git, or install and run etcd.
-        * Install and setup [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
-        * Install [kustomize](https://github.com/kubernetes/kubectl/tree/cc7be26dd0fe2c11b5ac43c4dc0771767e6264e5/cmd/kustomize)
-   * Run server
+* Run the server
 
-    go build -o ./hambone ../main.go && ./hambone # OR
-    go build -tags debug -o ./hambone ../main.go && ./hambone
+      cd examples && docker-compose up
+
+* Run the example client
+
+      ./bin/go.sh run examples/client.go -h
+
+##### Without Docker
+
+* Setup prerequisites
+   * Install and setup git, or install and run etcd.
+   * Install and setup [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
+   * Install [kustomize](https://github.com/kubernetes/kubectl/tree/cc7be26dd0fe2c11b5ac43c4dc0771767e6264e5/cmd/kustomize)
+* Run the server
+
+      cd examples && go build -o ./hambone ../main.go && ./hambone
+
+* Or with debug logging
+
+      cd examples && go build -tags debug -o ./hambone ../main.go && ./hambone
+
+* Run the example client
+
+      go run examples/client.go -h
 
 ### Develop
 
-* TODO
-* From the root of the repo, run `docker-compose build`, then `docker-compose up`.
 * Ensure your `~/.kube/config` is pointed to the cluster you want to develop against. I like to use minikube.
-* If you change the proto file, run `./bin/build-stubs.sh` to regenerate the Protocol Buffer code.
+* Start `etcd` and `hambone` from the root of the repo
+
+      docker-compose build
+      docker-compose up
+
+* Run the example client
+
+      ./bin/go.sh run examples/client.go -h
+* If you change the proto file, regenerate the Protocol Buffer code
+
+      ./bin/build-stubs.sh
 
 ### Roadmap
 
-* Create example Kubernetes specs for running the app
+* Create example specs for running `hambone` in Kubernetes
 * Add metrics
 * Document better
 * Tests
