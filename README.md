@@ -13,8 +13,10 @@ You want to practice [Declarative Application Management](https://github.com/kub
 * Supports multiple State Store adapters, currently `etcd` (recommended) and `git`. Additional adapters can be written to fulfill the [Interface](https://github.com/snarlysodboxer/hambone/blob/master/pkg/state/state.go). (PRs welcome!)
 * Aims to be as simple as possible, and expects you to do almost all the validation client-side where you can also build in your custom domain logic, or obtain external information for secrets or disk volume IDs, etc.
 * Uses `kubectl apply` and `kustomize build` both of which validate YAML, and `kubectl` validates objects. Care is taken to return meaningful errors.
-* Manages `kustomization.yaml` files ([Instances](docs/glossary.md#instance)) in a structured way, and tracks all changes in the State Store. The API safely rejects any `kustomization.yml` files which are rejected by `kustomize`, `kubectl`, or Kubernetes.
+* Manages `kustomization.yaml` files ([Instances](docs/glossary.md#instance)) in a structured way, and tracks all changes in the State Store. The server safely rejects any `kustomization.yml` files which are rejected by `kustomize`, `kubectl`, or Kubernetes.
+* Clients can pass an old version of a resource when updating or deleting to prevent writes from stale reads.
 * The API enables a client to store and retrieve default configurations which can be used when creating new Instances. This allows clients to be written in a way that hides YAML and complexity from the end-user so non-technicals can CRUD.  E.G. a customer support/manager facing SPA, or a server side `hambone` client so customers can request their own Instances. This part of the API is TODO.
+* The `etcd` adapter uses [Distributed Locks](https://coreos.com/etcd/docs/latest/dev-guide/api_concurrency_reference_v3.html) for concurrency control.
 * Ready to be run in replica in Kubernetes. See examples (TODO).
 
 ### Design
@@ -88,6 +90,7 @@ One could build an image `FROM snarlysodboxer/hambone:<tag>` and add a Git repos
 * Git adapter
     * Consider switching to [plumbing commands](http://schacon.github.io/git/git.html#_low_level_commands_plumbing)
     * Has been crudely converted from in-line to an adapter fulfulling an interface, needs refactored.
+    * Needs updated to check OldInstance and prevent writes from stale reads.
 * etcd adapter
     * Consider creating the ability to write all files to the filesystem and then `git commit` them. (For the purpose of manually working with the files in the State Store.)
 
