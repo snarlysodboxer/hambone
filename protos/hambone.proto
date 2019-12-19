@@ -22,6 +22,11 @@ service Instances {
             body: "*"
         };
     }
+    rpc GetTemplates(Empty) returns (InstanceList) {
+        option (google.api.http) = {
+            get: "/v1/instance/templates"
+        };
+    }
     // rpc CustomFile // write files to specified paths
     // rpc Status // RepoStatus
     /* rpc Render(Instance) returns (StringList) { */
@@ -37,7 +42,8 @@ message Instance {
     string kustomization_yaml = 2;
     repeated Status statuses = 3;
     string statuses_error_message = 4;
-    Instance old_instance = 5; // for atomic transaction, ignored if Instance does already exist in state store
+    Instance old_instance = 5; // for atomic transaction, ignored if Instance does not exist in state store
+    repeated File files = 6;
 }
 
 message InstanceList {
@@ -70,4 +76,12 @@ message GetOptions {
     int32 stop = 3;
     bool exclude_statuses = 4;
 }
+
+message File {
+  string name = 1;
+  string directory = 2;
+  string contents = 3;
+}
+
+message Empty {}
 

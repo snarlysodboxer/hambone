@@ -1,0 +1,7 @@
+<h1>Editing {{.Name}}</h1>
+
+<form action="/instance/save/{{.Name}}" method="POST">
+<div><textarea name="oldKustomizationYaml" style="display:none;white-space:nowrap;">{{printf "%s" .KustomizationYaml}}</textarea></div>
+<div><textarea name="kustomizationYaml" rows="20" cols="80">{{printf "%s" .KustomizationYaml}}</textarea></div>
+<div><input type="submit" value="Save"></div>
+</form>

@@ -1,0 +1,8 @@
+<h1>New Instance Overlay</h1>
+
+<form action="/instance/savenew/" method="POST">
+<div><input name="name" type="text" value="change-me"></div>
+<div><textarea name="kustomizationYaml" rows="20" cols="80">{{printf "%s" .KustomizationYaml}}</textarea></div>
+<div><input type="submit" value="Save"></div>
+</form>
+

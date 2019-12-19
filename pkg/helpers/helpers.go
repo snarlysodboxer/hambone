@@ -1,7 +1,6 @@
 package helpers
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -12,19 +11,23 @@ import (
 )
 
 const (
+	// KustomizationFileName defines the name of the kustomization.yaml file
 	KustomizationFileName = "kustomization.yaml"
 )
 
+// Indent indents a string for readability
 func Indent(output []byte) string {
 	return strings.Replace(string(output), "\n", "\n\t", -1)
 }
 
+// NewExecError returns an error formatted for exec.Command output
 func NewExecError(err error, output []byte, cmd string, args ...string) error {
 	DebugExecOutput(output, cmd, args...)
 	c := fmt.Sprintf("%s %s", cmd, strings.Join(args, " "))
-	return errors.New(fmt.Sprintf("ERROR running `%s`:\n\t%s: %s", c, err.Error(), string(output)))
+	return fmt.Errorf("ERROR running `%s`:\n\t%s: %s", c, err.Error(), string(output))
 }
 
+// ConvertStartStopToSliceIndexes converts start and stop numbers into slice indexes
 func ConvertStartStopToSliceIndexes(start, stop, length int32) (int32, int32) {
 	if stop > length {
 		stop = length
@@ -37,12 +40,14 @@ func ConvertStartStopToSliceIndexes(start, stop, length int32) (int32, int32) {
 	return start, stop
 }
 
+// GetInstanceDirFile returns the instanceDir and instanceFile names
 func GetInstanceDirFile(instancesDir, instanceName string) (string, string) {
 	instanceDir := fmt.Sprintf(`%s/%s`, instancesDir, instanceName)
 	instanceFile := fmt.Sprintf(`%s/%s`, instanceDir, KustomizationFileName)
 	return instanceDir, instanceFile
 }
 
+// MkdirFile ensures the directory and file exist
 func MkdirFile(filePath, contents string) error {
 	// mkdir
 	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
@@ -60,6 +65,7 @@ func MkdirFile(filePath, contents string) error {
 	return nil
 }
 
+// IsEmpty determines if a path is empty or not
 func IsEmpty(path string) (bool, error) {
 	file, err := os.Open(path)
 	if err != nil {

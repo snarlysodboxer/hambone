@@ -22,41 +22,50 @@ const (
 )
 
 var (
-	StateStore EtcdEngine
-	endpoints  = []string{}
+	endpoints = []string{}
 )
 
-type EtcdEngine struct {
+// Engine fulfills the StateStore interface
+type Engine struct {
 	EndpointsString string
 }
 
-func (engine *EtcdEngine) Init() error {
+// Init does setup
+func (engine *Engine) Init() error {
 	// parse and set endpoints
 	endpoints = strings.Split(engine.EndpointsString, ",")
 	return nil
 }
 
-func (engine *EtcdEngine) NewGetter(options *pb.GetOptions, list *pb.InstanceList, instancesDir string) state.Getter {
-	return &EtcdGetter{options, list, instancesDir}
+// NewGetter returns an initialized Getter
+func (engine *Engine) NewGetter(options *pb.GetOptions, list *pb.InstanceList, instancesDir string) state.Getter {
+	return &etcdGetter{options, list, instancesDir}
 }
 
-func (engine *EtcdEngine) NewUpdater(instance *pb.Instance, instancesDir string) state.Updater {
+// NewTemplatesGetter returns an initialized TemplatesGetter
+func (engine *Engine) NewTemplatesGetter(list *pb.InstanceList, templatesDir string) state.TemplatesGetter {
+	return &etcdTemplatesGetter{list, templatesDir}
+}
+
+// NewUpdater returns an initialized Updater
+func (engine *Engine) NewUpdater(instance *pb.Instance, instancesDir string) state.Updater {
 	instanceDir, instanceFile := helpers.GetInstanceDirFile(instancesDir, instance.Name)
-	return &EtcdUpdater{instance, instanceDir, instanceFile, nil, nil, nil}
+	return &etcdUpdater{instance, instanceDir, instanceFile, nil, nil, nil}
 }
 
-func (engine *EtcdEngine) NewDeleter(instance *pb.Instance, instancesDir string) state.Deleter {
+// NewDeleter returns an initialized Deleter
+func (engine *Engine) NewDeleter(instance *pb.Instance, instancesDir string) state.Deleter {
 	instanceDir, instanceFile := helpers.GetInstanceDirFile(instancesDir, instance.Name)
-	return &EtcdDeleter{instance, instanceDir, instanceFile, nil, nil, nil}
+	return &etcdDeleter{instance, instanceDir, instanceFile, nil, nil, nil}
 }
 
-type EtcdGetter struct {
+type etcdGetter struct {
 	*pb.GetOptions
 	*pb.InstanceList
 	instancesDir string
 }
 
-func (getter *EtcdGetter) Run() error {
+func (getter *etcdGetter) Run() error {
 	list := getter.InstanceList
 
 	// setup client
@@ -101,18 +110,20 @@ func (getter *EtcdGetter) Run() error {
 		}
 	}
 
-	// mkdir and write file for each
-	for _, instance := range list.Instances {
-		_, instanceFile := helpers.GetInstanceDirFile(getter.instancesDir, instance.Name)
-		if err = helpers.MkdirFile(instanceFile, instance.KustomizationYaml); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
-type EtcdUpdater struct {
+type etcdTemplatesGetter struct {
+	*pb.InstanceList
+	templatesDir string
+}
+
+func (getter *etcdTemplatesGetter) Run() error {
+	// TODO
+	return nil
+}
+
+type etcdUpdater struct {
 	*pb.Instance
 	instanceDir  string
 	instanceFile string
@@ -123,7 +134,7 @@ type EtcdUpdater struct {
 
 // Init is expected to do any init related to the state store,
 //   as well as write the kustomization.yaml file
-func (updater *EtcdUpdater) Init() error {
+func (updater *etcdUpdater) Init() error {
 	instanceFile := updater.instanceFile
 	instanceKey := getInstanceKey(updater.Instance.Name)
 
@@ -161,12 +172,12 @@ func (updater *EtcdUpdater) Init() error {
 }
 
 // Cancel is expected to clean up any mess, and remove the kustomization.yaml file/dir
-func (updater *EtcdUpdater) Cancel(err error) error {
+func (updater *etcdUpdater) Cancel(err error) error {
 	return updater.cleanUp(err)
 }
 
 // Commit is expected to add/update the Instance in the state store
-func (updater *EtcdUpdater) Commit() (erR error) {
+func (updater *etcdUpdater) Commit() (erR error) {
 	instanceKey := getInstanceKey(updater.Instance.Name)
 	defer func() { erR = updater.cleanUp(erR) }()
 
@@ -184,11 +195,11 @@ func (updater *EtcdUpdater) Commit() (erR error) {
 
 }
 
-func (updater *EtcdUpdater) cleanUp(err error) error {
+func (updater *etcdUpdater) cleanUp(err error) error {
 	return cleanUp(updater.mutex, updater.session, updater.clientV3, err)
 }
 
-type EtcdDeleter struct {
+type etcdDeleter struct {
 	*pb.Instance
 	instanceDir  string
 	instanceFile string
@@ -199,7 +210,7 @@ type EtcdDeleter struct {
 
 // Init is expected to do any init related to the state store,
 //   as well as write the kustomization.yaml file
-func (deleter *EtcdDeleter) Init() error {
+func (deleter *etcdDeleter) Init() error {
 	instanceFile := deleter.instanceFile
 	instanceKey := getInstanceKey(deleter.Instance.Name)
 
@@ -226,7 +237,7 @@ func (deleter *EtcdDeleter) Init() error {
 	if !txnResponse.Succeeded { // if !key exists
 		clientV3.Close()
 		helpers.Debugln("Closed clientV3")
-		return errors.New(fmt.Sprintf("No etcd key found for %s", deleter.Instance.Name))
+		return fmt.Errorf("No etcd key found for %s", deleter.Instance.Name)
 	}
 
 	// take out an etcd lock
@@ -253,7 +264,7 @@ func (deleter *EtcdDeleter) Init() error {
 		return deleter.cleanUp(err)
 	}
 	if len(response.Kvs) != 1 {
-		err = errors.New(fmt.Sprintf("Expected 1 key-value set, got %d", len(response.Kvs)))
+		err = fmt.Errorf("Expected 1 key-value set, got %d", len(response.Kvs))
 		log.Println(err)
 		return err
 	}
@@ -268,12 +279,12 @@ func (deleter *EtcdDeleter) Init() error {
 }
 
 // Cancel is expected to clean up any mess, and re-add the kustomization.yaml file/dir
-func (deleter *EtcdDeleter) Cancel(err error) error {
+func (deleter *etcdDeleter) Cancel(err error) error {
 	return deleter.cleanUp(err)
 }
 
 // Commit is expected to delete the Instance from the state store
-func (deleter *EtcdDeleter) Commit() (erR error) {
+func (deleter *etcdDeleter) Commit() (erR error) {
 	instanceKey := getInstanceKey(deleter.Instance.Name)
 	defer func() { erR = deleter.cleanUp(erR) }()
 
@@ -289,7 +300,7 @@ func (deleter *EtcdDeleter) Commit() (erR error) {
 	return nil
 }
 
-func (deleter *EtcdDeleter) cleanUp(err error) error {
+func (deleter *etcdDeleter) cleanUp(err error) error {
 	return cleanUp(deleter.mutex, deleter.session, deleter.clientV3, err)
 }
 
@@ -330,12 +341,12 @@ func cleanUp(mutex *concurrency.Mutex, session *concurrency.Session, clientV3 *c
 			session.Close()
 			clientV3.Close()
 			helpers.Debugln("Closed Concurrency Session and clientV3")
-			return errors.New(fmt.Sprintf("ERROR releasing lock after another error: %s\nOriginal Error:\n%s\n", innerError.Error(), err.Error()))
+			return fmt.Errorf("error releasing lock after another error: %s\nOriginal Error:\n%s", innerError.Error(), fmt.Sprintf("%s\n", err.Error()))
 		}
 		session.Close()
 		clientV3.Close()
 		helpers.Debugln("Closed Concurrency Session and clientV3")
-		return errors.New(fmt.Sprintf("ERROR releasing lock: %s\n", innerError.Error()))
+		return fmt.Errorf("error releasing lock: %s", fmt.Sprintf("%s\n", innerError.Error()))
 	}
 	session.Close()
 	clientV3.Close()
@@ -363,13 +374,13 @@ func oldInstanceEqualsCurrentInstanceIfSet(kvClient clientv3.KV, instanceKey str
 				return err
 			}
 			if len(response.Kvs) != 1 {
-				err = errors.New(fmt.Sprintf("Expected 1 key-value set, got %d", len(response.Kvs)))
+				err = fmt.Errorf("Expected 1 key-value set, got %d", len(response.Kvs))
 				log.Println(err)
 				return err
 			}
 			currentValue := response.Kvs[0].Value
 			if string(currentValue) != oldInstance.KustomizationYaml {
-				return errors.New("This Instance has been modified since you read it!")
+				return errors.New("instance modified since read")
 			}
 		}
 	}
