@@ -6,23 +6,26 @@
 
 You want to practice [Declarative Application Management](https://github.com/kubernetes/kubectl/blob/cc7be26dd0fe2c11b5ac43c4dc0771767e6264e5/cmd/kustomize/docs/glossary.md#declarative-application-management) using Kubernetes, and you need to CRUD multiple copies of the same application(s), configured differently. For example Wordpress sites, or copies of a single tenant monolith for different clients.
 
-`kustomize` does the heavy lifting, having the concept of a base set of Kubernetes YAML objects which you "kustomize" using "overlay"s (what `hambone` calls "Instances",) allowing you to override any value in the base YAML. `kustomize` isn't however usable by customer service reps, managers, or clients. An API server + clients can solve those needs.
+Kustomize does the heavy lifting, having the concept of a Base set of Kubernetes YAML files which you customize using Overlays (which Hambone calls Instances,) allowing you to override any value in the base YAML. Hambone is an API server for automating Kustomize Overlays.
 
 ### Features
+
 * Supports multiple State Store adapters, currently `etcd` (recommended) and `git`. Additional adapters can be written to fulfill the [Interface](https://github.com/snarlysodboxer/hambone/blob/master/pkg/state/state.go). (PRs welcome!)
 * Aims to be as simple as possible, and expects you to do almost all the validation client-side where you can also build in your custom domain logic, or obtain external information for secrets or disk volume IDs, etc.
-* Uses `kubectl apply` and `kustomize build` both of which validate YAML, and `kubectl` validates objects. Care is taken to return meaningful errors.
-* Manages `kustomization.yaml` files ([Instances](docs/glossary.md#instance)) in a structured way, and tracks all changes in the State Store. The server safely rejects any `kustomization.yml` files which are rejected by `kustomize`, `kubectl`, or Kubernetes.
+* Optionally uses `kustomize build` and `kubectl apply`, both of which validate YAML, and `kubectl` validates objects. Care is taken to return meaningful errors.
+* Manages `kustomization.yaml` files ([Instances](docs/glossary.md#instance)) in a structured way, and tracks all changes in the State Store. When using the `kustomize` and `kubectl` options, the server safely rejects any configs which are rejected by those tools or by Kubernetes.
 * Clients can pass an old version of a resource when updating or deleting to prevent writes from stale reads.
-* The API enables a client to store and retrieve default configurations which can be used when creating new Instances. This allows clients to be written in a way that hides YAML and complexity from the end-user so non-technicals can CRUD.  E.G. a customer support/manager facing SPA, or a server side `hambone` client so customers can request their own Instances. This part of the API is TODO.
+* The API enables a client to store and retrieve default configurations which can be used when creating new Instances.
 * The `etcd` adapter uses [Distributed Locks](https://coreos.com/etcd/docs/latest/dev-guide/api_concurrency_reference_v3.html) for concurrency control.
 * Ready to be run in replica in Kubernetes. See examples (TODO).
+
 ### Design
 
 * Consists of a gRPC server (with grpc-gateway JSON adapter TODO)
 * The server can be run with existing `kustomize` base(s) on the filesystem (such as a git repo,) or base and overlay files can be created and managed in the State Store through the API's `CustomFile` call/endpoint (`CustomFile` is TODO).
 * With the `etcd` adapter, the server is concurrency safe. The `git` adapter makes every attempt, but it's hard to protect against every circumstance. Problems could need manually fixed in (hopefully) rare circumstances.
-* Rather than using the Kubernetes and Git APIs directly, `hambone` takes advantage of  `kustomize` and `kubectl`. This makes it easy to support most versions of Kubernetes/kubectl and Git, and keeps the app simple.
+* Rather than using the Kubernetes and Git APIs directly, `hambone` takes advantage of the `kustomize` and `kubectl` binaries. This makes it easy to support most versions of Kubernetes/kubectl and Git, and keeps the app simple.
+* It's the client's responsibility to ensure generated objects don't colide with other generated objects if they're going to be applied to the same cluster. This is a matter of configuring your Kustomize files correctly.
 
 ### Dependencies
 
@@ -100,18 +103,35 @@ One could build an image `FROM snarlysodboxer/hambone:<tag>` and add a Git repos
 
       ./bin/build-stubs.sh
 
+### Running the tests
+
+* There are a number of integration tests that rely on a running git server.
+  * There's a Docker image for running the Git server
+  * `docker run -it --rm -p 5000:5000 snarlysodboxer/test-hambone:latest`
+* There are a number of integration tests that rely on a running etcd server.
+  * TODO
+* The unit tests can be run with
+  * `go test ./...`
+* The integration tests can be run with
+  * `go test -tags=integration pkg/state/git/git_integration_test.go pkg/state/git/git.go`
+  * `go test -tags=integration main_integration_test.go`
+  * `go test -tags=integration ./...` - This can cause race conditions because of testing concurrency.
+  * Debug mode can be turned on with
+  * `go test -tags=integration,debug pkg/state/git/git_integration_test.go pkg/state/git/git.go`
+
 ### Roadmap
 
 * Create example specs for running `hambone` in Kubernetes
 * Add metrics
 * Document better
 * Tests
-* Consider soft delete, or functionality to shutdown K8s pods without deleting (suspend?)
 * Track logged in users so changes can be Authored by someone
+* Allow passing arguments to Kustomize
+* Return rich gRPC status Errors
 * Git adapter
+    * Add ability to use etcd for distributed locking.
     * Consider switching to [plumbing commands](http://schacon.github.io/git/git.html#_low_level_commands_plumbing)
     * Has been crudely converted from in-line to an adapter fulfulling an interface, needs refactored.
-    * Needs updated to check OldInstance and prevent writes from stale reads.
 * etcd adapter
     * Consider creating the ability to write all files to the filesystem and then `git commit` them. (For the purpose of manually working with the files in the State Store.)
 

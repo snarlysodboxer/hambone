@@ -1,0 +1,16 @@
+<h1>Instance Overlays</h1>
+
+<table>
+    <tr>
+      <td>Name</td>
+    </tr>
+    {{ with .Instances }}
+        {{ range . }}
+            <tr>
+                <td><a href="/instance/view/{{.Name}}">{{.Name}}</a></td>
+            </tr>
+        {{ end }}
+    {{ end }}
+</table>
+
+<p>[<a href="/instance/new/my-template">new</a>]</p>
