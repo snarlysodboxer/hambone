@@ -1,10 +1,10 @@
 # hambone
 
-## An API server for CRUDing differently configured copies of the same Kubernetes specs using [Kustomize](https://github.com/kubernetes/kubectl/tree/58f555205b015986f2e487dc88a1481b6de3c5c4/cmd/kustomize)
+## An API server for CRUDing differently configured copies of the same Kubernetes specs using [Kustomize](https://kustomize.io/)
 
 ## Purpose
 
-You want to practice [Declarative Application Management](https://github.com/kubernetes/kubectl/blob/cc7be26dd0fe2c11b5ac43c4dc0771767e6264e5/cmd/kustomize/docs/glossary.md#declarative-application-management) using Kubernetes, and you need to CRUD multiple copies of the same application(s), configured differently. For example Wordpress sites, or copies of a single tenant monolith for different clients.
+You want to practice [Declarative Application Management](https://kubernetes.io/docs/concepts/overview/working-with-objects/object-management/#declarative-object-configuration) using Kubernetes, and you need to CRUD multiple copies of the same application(s), configured differently. For example Wordpress sites, or copies of a single tenant monolith for different clients.
 
 Kustomize does the heavy lifting, having the concept of a Base set of Kubernetes YAML files which you customize using Overlays (which Hambone calls Instances,) allowing you to override any value in the base YAML. Hambone is an API server for automating Kustomize Overlays.
 
@@ -14,8 +14,8 @@ Kustomize does the heavy lifting, having the concept of a Base set of Kubernetes
 * Aims to be as simple as possible, and expects you to do almost all the validation client-side where you can also build in your custom domain logic, or obtain external information for secrets or disk volume IDs, etc.
 * Optionally uses `kustomize build` and `kubectl apply`, both of which validate YAML, and `kubectl` validates objects. Care is taken to return meaningful errors.
 * Manages `kustomization.yaml` files ([Instances](docs/glossary.md#instance)) in a structured way, and tracks all changes in the State Store. When using the `kustomize` and `kubectl` options, the server safely rejects any configs which are rejected by those tools or by Kubernetes.
-* Clients can pass an old version of a resource when updating or deleting to prevent writes from stale reads.
-* The API enables a client to store and retrieve default configurations which can be used when creating new Instances.
+* Clients can pass an old version of an Instance when updating or deleting to prevent writes from stale reads.
+* The API enables a client to store and retrieve Template configurations which can be used when creating new Instances.
 * The `etcd` adapter uses [Distributed Locks](https://coreos.com/etcd/docs/latest/dev-guide/api_concurrency_reference_v3.html) for concurrency control.
 * Ready to be run in replica in Kubernetes. See examples (TODO).
 
@@ -75,7 +75,7 @@ One could build an image `FROM snarlysodboxer/hambone:<tag>` and add a Git repos
 * Setup prerequisites
    * Install and setup git, or install and run etcd.
    * Install and setup [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
-   * Install [kustomize](https://github.com/kubernetes/kubectl/tree/cc7be26dd0fe2c11b5ac43c4dc0771767e6264e5/cmd/kustomize)
+   * Install [kustomize](https://github.com/kubernetes-sigs/kustomize/blob/master/docs/INSTALL.md)
 * Run the server
 
       cd examples && go build -o ./hambone ../main.go && ./hambone
@@ -91,27 +91,18 @@ One could build an image `FROM snarlysodboxer/hambone:<tag>` and add a Git repos
 ### Develop
 
 * Ensure your `~/.kube/config` is pointed to the cluster you want to develop against. I like to use minikube.
-* Start `etcd` and `hambone` from the root of the repo
-
-      docker-compose build
-      docker-compose up
-
-* Run the example client
-
-      ./bin/go.sh run examples/client.go -h
 * If you change the proto file, regenerate the Protocol Buffer code
-
       ./bin/build-stubs.sh
+* Run the tests
 
 ### Running the tests
 
-* There are a number of integration tests that rely on a running git server.
-  * There's a Docker image for running the Git server
-  * `docker run -it --rm -p 5000:5000 snarlysodboxer/test-hambone:latest`
-* There are a number of integration tests that rely on a running etcd server.
-  * TODO
 * The unit tests can be run with
   * `go test ./...`
+* There are a number of integration tests that rely on a running git server.
+* There are a number of integration tests that rely on a running etcd server.
+  * Both of these servers can be run with
+  * `docker-compose up`
 * The integration tests can be run with
   * `go test -tags=integration pkg/state/git/git_integration_test.go pkg/state/git/git.go`
   * `go test -tags=integration main_integration_test.go`
@@ -124,7 +115,7 @@ One could build an image `FROM snarlysodboxer/hambone:<tag>` and add a Git repos
 * Create example specs for running `hambone` in Kubernetes
 * Add metrics
 * Document better
-* Tests
+* More tests
 * Track logged in users so changes can be Authored by someone
 * Allow passing arguments to Kustomize
 * Return rich gRPC status Errors

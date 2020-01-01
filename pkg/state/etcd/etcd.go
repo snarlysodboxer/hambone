@@ -2,7 +2,6 @@ package etcd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/clientv3/clientv3util"
@@ -364,6 +363,9 @@ func oldInstanceEqualsCurrentInstanceIfSet(kvClient clientv3.KV, instanceKey str
 			log.Println(err)
 			return err
 		}
+		if !txnResponse.Succeeded { // if !key exists
+			return state.InstanceNoExistError
+		}
 		if txnResponse.Succeeded { // if key exists
 			// check for modified since read
 			ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
@@ -380,7 +382,7 @@ func oldInstanceEqualsCurrentInstanceIfSet(kvClient clientv3.KV, instanceKey str
 			}
 			currentValue := response.Kvs[0].Value
 			if string(currentValue) != oldInstance.KustomizationYaml {
-				return errors.New("instance modified since read")
+				return state.OldInstanceDiffersError
 			}
 		}
 	}
