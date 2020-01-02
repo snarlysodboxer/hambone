@@ -41,6 +41,12 @@ func (request *GetTemplatesRequest) Run() error {
 
 	getter := request.server.StateStore.NewTemplatesGetter(list, request.server.TemplatesDir)
 	err := getter.Run()
+	defer func() {
+		err = getter.RunCleanupFuncs()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 	if err != nil {
 		return err
 	}
@@ -68,6 +74,12 @@ func (request *GetRequest) Run() error {
 
 	getter := request.server.StateStore.NewGetter(request.GetOptions, list, request.server.InstancesDir)
 	err := getter.Run()
+	defer func() {
+		err = getter.RunCleanupFuncs()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 	if err != nil {
 		return err
 	}
@@ -109,6 +121,12 @@ func (instance *Instance) apply() error {
 
 	updater := instance.server.StateStore.NewUpdater(instance.Instance, instance.server.InstancesDir)
 	err = updater.Init()
+	defer func() {
+		err = updater.RunCleanupFuncs()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 	if err != nil {
 		return err
 	}
@@ -152,6 +170,12 @@ func (instance *Instance) delete() error {
 
 	deleter := instance.server.StateStore.NewDeleter(instance.Instance, instance.server.InstancesDir)
 	err = deleter.Init()
+	defer func() {
+		err = deleter.RunCleanupFuncs()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 	if err != nil {
 		return err
 	}

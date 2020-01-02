@@ -18,6 +18,7 @@ type Updater interface {
 	Init() error
 	Cancel(error) error
 	Commit() error
+	RunCleanupFuncs() error
 }
 
 // Deleter is the interface that enables deleting Instances
@@ -25,16 +26,19 @@ type Deleter interface {
 	Init() error
 	Cancel(error) error
 	Commit() error
+	RunCleanupFuncs() error
 }
 
 // Getter is the interface that enables getting Instances
 type Getter interface {
 	Run() error
+	RunCleanupFuncs() error
 }
 
 // TemplatesGetter is the interface that enables getting Instance Templates
 type TemplatesGetter interface {
 	Run() error
+	RunCleanupFuncs() error
 }
 
 // Engine is the interface that enables modifying state

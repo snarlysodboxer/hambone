@@ -8,102 +8,28 @@ import (
 	"google.golang.org/grpc"
 )
 
-const (
-	kustomizationYamlThird = `namePrefix: my-third-client-
-
-commonLabels:
-  client: my-third-client
-  myProductVersion: '3.1'
-
-commonAnnotations:
-  TAM: joel
-
-secretGenerator:
-- name: my-product-app-key
-  commands:
-    app-key: "echo $PWD"
-  type: Opaque
-
-bases:
-- ../../my-product
-
-patches:
-- ../../versions/3.1.yml
-`
-	kustomizationYamlOther = `namePrefix: my-other-client-
-
-commonLabels:
-  client: my-other-client
-  myProductVersion: '3.6'
-
-commonAnnotations:
-  TAM: joel
-
-secretGenerator:
-- name: my-product-app-key
-  commands:
-    app-key: "echo $PWD"
-  type: Opaque
-
-bases:
-- ../../my-product
-
-patches:
-- ../../versions/3.6.yml
-`
-	kustomizationYaml = `namePrefix: my-client-
-
-commonLabels:
-  client: my-client
-  myProductVersion: '3.1'
-
-commonAnnotations:
-  TAM: joel
-
-secretGenerator:
-- name: my-product-app-key
-  commands:
-    app-key: "echo $PWD"
-  type: Opaque
-
-bases:
-- ../../my-product
-
-patches:
-- ../../versions/3.1.yml
-`
-	kustomizationYamlMod = `namePrefix: my-client-
-
-commonLabels:
-  client: my-client
-  myProductVersion: '3.6'
-
-commonAnnotations:
-  TAM: joel
-
-secretGenerator:
-- name: my-product-app-key
-  commands:
-    app-key: "echo $PWD"
-  type: Opaque
-
-bases:
-- ../../my-product
-
-patches:
-- ../../versions/3.6.yml
-`
-)
-
 var (
 	action        = flag.String("action", "applyInstance", "Which action to run")
+	name          = flag.String("name", "my-client-1", "The name of the Instance to act upon")
 	serverAddress = flag.String("server_address", "127.0.0.1:50051", "Where to reach the server")
 )
 
+func applyManyInstances(client pb.InstancesClient) error {
+	for i := 0; i < 700; i++ {
+		name := fmt.Sprintf("my-client-%d", i)
+		kustomizationYaml := generateKustomizationYaml(name, name)
+		instance := &pb.Instance{Name: name, KustomizationYaml: kustomizationYaml}
+		instance, err := client.Apply(context.Background(), instance)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func applyInstance(client pb.InstancesClient) (*pb.Instance, error) {
-	instance := &pb.Instance{Name: "my-client", KustomizationYaml: kustomizationYaml}
-	// instance := &pb.Instance{Name: "my-other-client", KustomizationYaml: kustomizationYamlOther}
-	// instance := &pb.Instance{Name: "my-third-client", KustomizationYaml: kustomizationYamlThird}
+	kustomizationYaml := generateKustomizationYaml(*name, *name)
+	instance := &pb.Instance{Name: *name, KustomizationYaml: kustomizationYaml}
 	instance, err := client.Apply(context.Background(), instance)
 	if err != nil {
 		return instance, err
@@ -113,10 +39,10 @@ func applyInstance(client pb.InstancesClient) (*pb.Instance, error) {
 
 // atomic update
 func updateInstance(client pb.InstancesClient) (*pb.Instance, error) {
-	// instance := &pb.Instance{Name: "my-client", KustomizationYaml: kustomizationYamlMod}
-	// instance.OldInstance = &pb.Instance{Name: "my-client", KustomizationYaml: kustomizationYaml}
-	instance := &pb.Instance{Name: "my-client", KustomizationYaml: kustomizationYaml}
-	instance.OldInstance = &pb.Instance{Name: "my-client", KustomizationYaml: kustomizationYamlMod}
+	kustomizationYaml := generateKustomizationYaml(*name, *name)
+	kustomizationYamlMod := generateKustomizationYaml(*name, "other-name")
+	instance := &pb.Instance{Name: *name, KustomizationYaml: kustomizationYaml}
+	instance.OldInstance = &pb.Instance{Name: *name, KustomizationYaml: kustomizationYamlMod}
 	instance, err := client.Apply(context.Background(), instance)
 	if err != nil {
 		return instance, err
@@ -126,7 +52,7 @@ func updateInstance(client pb.InstancesClient) (*pb.Instance, error) {
 
 // If a name is passed in GetOptions, Start and Stop are ignored
 func getInstance(client pb.InstancesClient) (*pb.InstanceList, error) {
-	getOptions := &pb.GetOptions{Name: "my-client"}
+	getOptions := &pb.GetOptions{Name: *name}
 	instanceList, err := client.Get(context.Background(), getOptions)
 	if err != nil {
 		return instanceList, err
@@ -136,7 +62,8 @@ func getInstance(client pb.InstancesClient) (*pb.InstanceList, error) {
 
 func getInstances(client pb.InstancesClient) (*pb.InstanceList, error) {
 	// getOptions := &pb.GetOptions{Start: 1, Stop: 10, ExcludeStatuses: true} // Get paginated and/or without statuses
-	getOptions := &pb.GetOptions{} // Get all, including statuses
+	getOptions := &pb.GetOptions{ExcludeStatuses: true} // statuses are also ignored if kubectl is not enabled
+	// getOptions := &pb.GetOptions{} // Get all, including statuses
 	instanceList, err := client.Get(context.Background(), getOptions)
 	if err != nil {
 		return instanceList, err
@@ -145,9 +72,7 @@ func getInstances(client pb.InstancesClient) (*pb.InstanceList, error) {
 }
 
 func deleteInstance(client pb.InstancesClient) (*pb.Instance, error) {
-	// instance := &pb.Instance{Name: "my-client"}
-	instance := &pb.Instance{Name: "my-other-client"}
-	// instance := &pb.Instance{Name: "my-third-client"}
+	instance := &pb.Instance{Name: *name}
 	instance, err := client.Delete(context.Background(), instance)
 	if err != nil {
 		return instance, err
@@ -156,16 +81,35 @@ func deleteInstance(client pb.InstancesClient) (*pb.Instance, error) {
 }
 
 func atomicDeleteInstance(client pb.InstancesClient) (*pb.Instance, error) {
-	clientName := "my-client"
-	// clientName := "my-other-client"
-	// clientName := "my-third-client"
-	instance := &pb.Instance{Name: clientName}
-	instance.OldInstance = &pb.Instance{Name: clientName, KustomizationYaml: kustomizationYaml}
+	instance := &pb.Instance{Name: *name}
+	kustomizationYaml := generateKustomizationYaml(*name, *name)
+	instance.OldInstance = &pb.Instance{Name: *name, KustomizationYaml: kustomizationYaml}
 	instance, err := client.Delete(context.Background(), instance)
 	if err != nil {
 		return instance, err
 	}
 	return instance, nil
+}
+
+func generateKustomizationYaml(name, dnsName string) string {
+	return fmt.Sprintf(`---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namePrefix: %s-
+
+resources:
+- ../../base
+
+configMapGenerator:
+- name: my-configmap
+  namespace: default
+  behavior: create
+  literals:
+  - APP_URL=https://%s.example.com
+  - SOME=thing
+
+`, name, dnsName)
 }
 
 func main() {
@@ -180,6 +124,12 @@ func main() {
 	instancesClient := pb.NewInstancesClient(connection)
 
 	switch *action {
+	case "applyManyInstances":
+		err := applyManyInstances(instancesClient)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("Applied many Instances")
 	case "applyInstance":
 		instance, err := applyInstance(instancesClient)
 		if err != nil {

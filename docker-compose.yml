@@ -16,7 +16,7 @@ services:
     - --name=node1
     - --initial-advertise-peer-urls=http://127.0.0.1:2390
     - --listen-peer-urls=http://127.0.0.1:2390
-    - --advertise-client-urls=http://127.0.0.1:2389
+    - --advertise-client-urls=http://127.0.0.1:2379
     - --listen-client-urls=http://127.0.0.1:2379
     - --initial-cluster=node1=http://127.0.0.1:2390
     volumes:
