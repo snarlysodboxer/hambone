@@ -3,6 +3,7 @@
 package helpers
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -19,7 +20,7 @@ func Debugln(args ...interface{}) {
 
 // Debugf format prints debug info if debug logging is enabled
 func Debugf(format string, args ...interface{}) {
-	logger.Printf(format, args...)
+	logger.Printf(fmt.Sprintf("%s\n", format), args...)
 }
 
 // DebugExecOutput formats and prints exec.Command debug info if debug logging is enabled

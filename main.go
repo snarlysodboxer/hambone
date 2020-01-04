@@ -23,6 +23,7 @@ var (
 	templatesDir         = flag.String("templates_dir", "./templates", "The directory in which instance templates are stored (relative to repo_dir)")
 	statePlugin          = flag.String("state_store", "etcd", "State store adapter to use, git or etcd")
 	etcdEndpoints        = flag.String("etcd_endpoints", "http://127.0.0.1:2379", "Comma-separated list of etcd endpoints, only used for etcd adapter")
+	etcdLocksGitKey      = flag.String("etcd_locks_with_git_key", "", "Key for etcd locks when using the Git state_store adapter. Leave unset to disable etcd locks with Git. Ignored with the etcd state_store adapter.")
 	enableKustomizeBuild = flag.Bool("enable_kustomize_build", false, "Enable Kustomize build to verify builds work")
 	enableKubectl        = flag.Bool("enable_kubectl", false, "Enable Kustomize build and kubectl apply and delete, managing objects in the local cluster. Implies enable_kustomize_build")
 )
@@ -33,13 +34,20 @@ func main() {
 	var stateStore state.Engine
 	switch *statePlugin {
 	case "git":
-		stateStore = &git.Engine{WorkingDir: *repoDir}
+		stateStore = &git.Engine{
+			WorkingDir:      *repoDir,
+			EndpointsString: *etcdEndpoints,
+			EtcdLocksGitKey: *etcdLocksGitKey,
+		}
 	case "etcd":
-		stateStore = &etcd.Engine{EndpointsString: *etcdEndpoints}
+		stateStore = &etcd.Engine{WorkingDir: *repoDir, EndpointsString: *etcdEndpoints}
 	default:
 		panic("Please choose `git` or `etcd` for state_store option")
 	}
-	stateStore.Init()
+	err := stateStore.Init()
+	if err != nil {
+		panic(err)
+	}
 
 	listener, err := net.Listen("tcp", *listenAddress)
 	if err != nil {

@@ -1,6 +1,6 @@
-FROM snarlysodboxer/hambone:v1.7.3 as hambone
+FROM snarlysodboxer/hambone:v1.15.0 as hambone
 
-FROM golang:1.10
+FROM golang:1.13.5-stretch
 ENV CGO_ENABLED=0 GOOS=linux
 RUN go get github.com/githubnemo/CompileDaemon
 COPY --from=hambone /usr/local/bin/hambone /usr/local/bin/hambone

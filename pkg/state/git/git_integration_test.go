@@ -17,7 +17,9 @@ import (
 )
 
 var (
-	gitRepoAddress = flag.String("git_repo_address", "http://localhost:5000/hambone/test-hambone.git", "The Git clone address for testing against")
+	gitRepoAddress      = flag.String("git_repo_address", "http://localhost:5000/hambone/test-hambone.git", "The Git clone address for testing against")
+	testEtcdLocksGitKey = flag.String("etcd_locks_with_git_key", "", "Key for etcd locks when using the Git state_store adapter. Leave unset to disable etcd locks with Git. Ignored with the etcd state_store adapter.")
+	etcdEndpoints       = flag.String("etcd_endpoints", "http://127.0.0.1:2379", "Comma-separated list of etcd endpoints, only used for etcd adapter")
 )
 
 func TestGitUpdater(t *testing.T) {
@@ -28,10 +30,6 @@ func TestGitUpdater(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir) // clean up
 
-	err = os.Chdir(repoDir)
-	if err != nil {
-		t.Fatal(err)
-	}
 	instanceName := "my-overlay"
 	instancesDir := "overlays"
 	subAppName := "my-app"
@@ -44,8 +42,14 @@ func TestGitUpdater(t *testing.T) {
 	file2 := &pb.File{Name: subYamlName, Directory: subSubAppName, Contents: string(deploymentYaml)}
 	instance := &pb.Instance{Name: instanceName, KustomizationYaml: string(kustomizationYaml), Files: []*pb.File{file, file2}}
 	instanceDir, instanceFile := helpers.GetInstanceDirFile(instancesDir, instanceName)
-	updater := &gitUpdater{instance, instanceDir, instanceFile, repoDir}
+	updater := &gitUpdater{instance, instanceDir, instanceFile, repoDir, nil}
 	err = updater.Init()
+	defer func() {
+		err := updater.RunCleanupFuncs()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,10 +93,6 @@ func TestGitGetter(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tempDir) // clean up
-	err = os.Chdir(repoDir)
-	if err != nil {
-		t.Fatal(err)
-	}
 	instancesDir := "overlays"
 	subAppName := "my-app"
 	dYamlName := filepath.Join(subAppName, "deployment.yaml")
@@ -105,8 +105,14 @@ func TestGitGetter(t *testing.T) {
 		instanceName := fmt.Sprintf("my-overlay-%d", i)
 		instance := &pb.Instance{Name: instanceName, KustomizationYaml: string(kustomizationYaml), Files: []*pb.File{file, file2}}
 		instanceDir, instanceFile := helpers.GetInstanceDirFile(instancesDir, instanceName)
-		updater := &gitUpdater{instance, instanceDir, instanceFile, repoDir}
+		updater := &gitUpdater{instance, instanceDir, instanceFile, repoDir, nil}
 		err = updater.Init()
+		defer func() {
+			err := updater.RunCleanupFuncs()
+			if err != nil {
+				t.Fatal(err)
+			}
+		}()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -115,12 +121,22 @@ func TestGitGetter(t *testing.T) {
 			t.Fatal(err)
 		}
 		sentList.Instances = append(sentList.Instances, instance)
+		err = updater.RunCleanupFuncs()
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	// get one
 	getList := &pb.InstanceList{}
 	getOptions := &pb.GetOptions{Name: "my-overlay-0"}
-	getter := &gitGetter{getOptions, getList, instancesDir, repoDir}
+	getter := &gitGetter{getOptions, getList, instancesDir, repoDir, nil}
+	defer func() {
+		err := getter.RunCleanupFuncs()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
 	err = getter.Run()
 	if err != nil {
 		t.Fatal(err)
@@ -137,11 +153,21 @@ func TestGitGetter(t *testing.T) {
 	if !reflect.DeepEqual(getList.Instances[0].Files[0], file) {
 		t.Errorf("Expected: %s\n, got: %s\n", file, getList.Instances[0].Files[0])
 	}
+	err = getter.RunCleanupFuncs()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// get all
 	getList = &pb.InstanceList{}
 	getOptions = &pb.GetOptions{}
-	getter = &gitGetter{getOptions, getList, instancesDir, repoDir}
+	getter = &gitGetter{getOptions, getList, instancesDir, repoDir, nil}
+	defer func() {
+		err := getter.RunCleanupFuncs()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
 	err = getter.Run()
 	if err != nil {
 		t.Fatal(err)
@@ -155,11 +181,21 @@ func TestGitGetter(t *testing.T) {
 			}
 		}
 	}
+	err = getter.RunCleanupFuncs()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// get paginated
 	getList = &pb.InstanceList{}
 	getOptions = &pb.GetOptions{Start: 2, Stop: 6, ExcludeStatuses: true}
-	getter = &gitGetter{getOptions, getList, instancesDir, repoDir}
+	getter = &gitGetter{getOptions, getList, instancesDir, repoDir, nil}
+	defer func() {
+		err := getter.RunCleanupFuncs()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
 	err = getter.Run()
 	if err != nil {
 		t.Fatal(err)
@@ -203,7 +239,13 @@ func TestGitTemplatesGetter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	templatesGetter := &gitTemplatesGetter{&pb.InstanceList{}, templatesDir, repoDir}
+	templatesGetter := &gitTemplatesGetter{&pb.InstanceList{}, templatesDir, repoDir, nil}
+	defer func() {
+		err := templatesGetter.RunCleanupFuncs()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
 	err = templatesGetter.Run()
 	if err != nil {
 		t.Fatal(err)
@@ -258,10 +300,6 @@ func TestGitDeleter(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir) // clean up
 
-	err = os.Chdir(repoDir)
-	if err != nil {
-		t.Fatal(err)
-	}
 	instanceName := "my-overlay-delete"
 	instancesDir := "overlays"
 	subAppName := "my-app"
@@ -274,8 +312,14 @@ func TestGitDeleter(t *testing.T) {
 	file2 := &pb.File{Name: subYamlName, Directory: subSubAppName, Contents: string(deploymentYaml)}
 	instance := &pb.Instance{Name: instanceName, KustomizationYaml: string(kustomizationYaml), Files: []*pb.File{file, file2}}
 	instanceDir, instanceFile := helpers.GetInstanceDirFile(instancesDir, instanceName)
-	updater := &gitUpdater{instance, instanceDir, instanceFile, repoDir}
+	updater := &gitUpdater{instance, instanceDir, instanceFile, repoDir, nil}
 	err = updater.Init()
+	defer func() {
+		err := updater.RunCleanupFuncs()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,8 +327,18 @@ func TestGitDeleter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	deleter := &gitDeleter{instance, instanceDir, instanceFile, repoDir}
+	err = updater.RunCleanupFuncs()
+	if err != nil {
+		t.Fatal(err)
+	}
+	deleter := &gitDeleter{instance, instanceDir, instanceFile, repoDir, nil}
 	err = deleter.Init()
+	defer func() {
+		err := deleter.RunCleanupFuncs()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -316,6 +370,7 @@ func TestGitDeleter(t *testing.T) {
 }
 
 func setup() (tempDir, repoDir string, err error) {
+	etcdLocksGitKey = *testEtcdLocksGitKey
 	tempDir, err = ioutil.TempDir("", "hambone-git")
 	if err != nil {
 		return
@@ -331,8 +386,11 @@ func setup() (tempDir, repoDir string, err error) {
 		return
 	}
 	repoDir = filepath.Join(tempDir, "test-hambone")
-	stateStore := &Engine{WorkingDir: repoDir}
-	stateStore.Init()
+	stateStore := &Engine{WorkingDir: repoDir, EndpointsString: *etcdEndpoints, EtcdLocksGitKey: etcdLocksGitKey}
+	err = stateStore.Init()
+	if err != nil {
+		return
+	}
 
 	return
 }

@@ -1,19 +1,29 @@
 package git
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
+	"runtime"
 	"strings"
+	"time"
 
 	pb "github.com/snarlysodboxer/hambone/generated"
 	"github.com/snarlysodboxer/hambone/pkg/helpers"
 	"github.com/snarlysodboxer/hambone/pkg/state"
+	"github.com/snarlysodboxer/hambone/pkg/state/etcd"
+	"go.etcd.io/etcd/clientv3"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+)
+
+const (
+	dialTimeout = 5 * time.Second
 )
 
 var (
@@ -21,11 +31,15 @@ var (
 	TrackedUncommittedChangesError = status.Error(codes.FailedPrecondition, "tracked uncommitted changes")
 	// UnTrackedUncommittedChangesError indicates a request's Instance has untracked and uncommitted changes in the working tree. This could indicate a bug, and likely needs fixed manually.
 	UnTrackedUncommittedChangesError = status.Error(codes.FailedPrecondition, "untracked uncommitted changes")
+	endpoints                        = []string{}
+	etcdLocksGitKey                  = ""
 )
 
 // Engine fulfills the StateStore interface
 type Engine struct {
-	WorkingDir string
+	WorkingDir      string
+	EndpointsString string
+	EtcdLocksGitKey string
 }
 
 // Init does setup
@@ -39,29 +53,34 @@ func (engine *Engine) Init() error {
 		return err
 	}
 
+	etcdLocksGitKey = engine.EtcdLocksGitKey
+
+	// parse and set endpoints
+	endpoints = strings.Split(engine.EndpointsString, ",")
+
 	return nil
 }
 
 // NewGetter returns an initialized Getter
 func (engine *Engine) NewGetter(options *pb.GetOptions, list *pb.InstanceList, instancesDir string) state.Getter {
-	return &gitGetter{options, list, instancesDir, engine.WorkingDir}
+	return &gitGetter{options, list, instancesDir, engine.WorkingDir, nil}
 }
 
 // NewTemplatesGetter returns an initialized TemplatesGetter
 func (engine *Engine) NewTemplatesGetter(list *pb.InstanceList, templatesDir string) state.TemplatesGetter {
-	return &gitTemplatesGetter{list, templatesDir, engine.WorkingDir}
+	return &gitTemplatesGetter{list, templatesDir, engine.WorkingDir, nil}
 }
 
 // NewUpdater returns an initialized Updater
 func (engine *Engine) NewUpdater(instance *pb.Instance, instancesDir string) state.Updater {
 	instanceDir, instanceFile := helpers.GetInstanceDirFile(instancesDir, instance.Name)
-	return &gitUpdater{instance, instanceDir, instanceFile, engine.WorkingDir}
+	return &gitUpdater{instance, instanceDir, instanceFile, engine.WorkingDir, nil}
 }
 
 // NewDeleter returns an initialized Deleter
 func (engine *Engine) NewDeleter(instance *pb.Instance, instancesDir string) state.Deleter {
 	instanceDir, instanceFile := helpers.GetInstanceDirFile(instancesDir, instance.Name)
-	return &gitDeleter{instance, instanceDir, instanceFile, engine.WorkingDir}
+	return &gitDeleter{instance, instanceDir, instanceFile, engine.WorkingDir, nil}
 }
 
 type gitGetter struct {
@@ -69,13 +88,13 @@ type gitGetter struct {
 	*pb.InstanceList
 	instancesDir string
 	workingDir   string
+	cleanupFuncs []func() error
 }
 
 // Run runs the get request
 func (getter *gitGetter) Run() error {
 	list := getter.InstanceList
 
-	// git pull
 	err := gitPull()
 	if err != nil {
 		return err
@@ -120,17 +139,23 @@ func (getter *gitGetter) Run() error {
 	return nil
 }
 
+func (getter *gitGetter) RunCleanupFuncs() error {
+	err := runCleanupFuncs(getter.cleanupFuncs)
+	getter.cleanupFuncs = nil
+	return err
+}
+
 type gitTemplatesGetter struct {
 	*pb.InstanceList
 	templatesDir string
 	workingDir   string
+	cleanupFuncs []func() error
 }
 
 // Run runs the get template request
 func (getter *gitTemplatesGetter) Run() error {
 	list := getter.InstanceList
 
-	// git pull
 	err := gitPull()
 	if err != nil {
 		return err
@@ -153,11 +178,18 @@ func (getter *gitTemplatesGetter) Run() error {
 	return nil
 }
 
+func (getter *gitTemplatesGetter) RunCleanupFuncs() error {
+	err := runCleanupFuncs(getter.cleanupFuncs)
+	getter.cleanupFuncs = nil
+	return err
+}
+
 type gitUpdater struct {
 	*pb.Instance
 	instanceDir  string
 	instanceFile string
 	workingDir   string
+	cleanupFuncs []func() error
 }
 
 // Init is expected to do any init related to the state store,
@@ -166,15 +198,44 @@ func (updater *gitUpdater) Init() error {
 	instanceFile := updater.instanceFile
 	instanceDir := updater.instanceDir
 
-	// TODO take out a mutex lock here
+	// take out a mutex lock if desired
+	if etcdLocksGitKey != "" {
+		clientV3, err := clientv3.New(clientv3.Config{Endpoints: endpoints, DialTimeout: dialTimeout})
+		if err != nil {
+			return status.Errorf(codes.Unknown, "error getting etcd client: %s", err.Error())
+		}
+		cancel, session, mutex, err := etcd.GetSessionAndMutex(clientV3, etcdLocksGitKey, "updater")
+		if err != nil {
+			return status.Errorf(codes.Unknown, "error getting etcd session: %s", err.Error())
+		}
+		updater.cleanupFuncs = append(updater.cleanupFuncs, func() error {
+			cancel()
+			helpers.Debugln("Ran updater CancelFunc")
+			return nil
+		})
+		updater.cleanupFuncs = append(updater.cleanupFuncs, func() error {
+			if err = session.Close(); err != nil {
+				return err
+			}
+			helpers.Debugln("Closed updater session")
+			return nil
+		})
+		updater.cleanupFuncs = append(updater.cleanupFuncs, func() error {
+			key := mutex.Key()
+			if err = mutex.Unlock(context.TODO()); err != nil {
+				return err
+			}
+			helpers.Debugf("Released updater lock for %s", key)
+			return nil
+		})
+	}
 
-	err := ensureCleanFile(instanceDir)
+	err := gitPull()
 	if err != nil {
 		return err
 	}
 
-	// git pull
-	err = gitPull()
+	err = ensureCleanFile(instanceDir)
 	if err != nil {
 		return err
 	}
@@ -263,11 +324,18 @@ func (updater *gitUpdater) Commit() error {
 	return nil
 }
 
+func (updater *gitUpdater) RunCleanupFuncs() error {
+	err := runCleanupFuncs(updater.cleanupFuncs)
+	updater.cleanupFuncs = nil
+	return err
+}
+
 type gitDeleter struct {
 	*pb.Instance
 	instanceDir  string
 	instanceFile string
 	workingDir   string
+	cleanupFuncs []func() error
 }
 
 // Init is expected to do any init related to the state store,
@@ -276,7 +344,38 @@ func (deleter *gitDeleter) Init() error {
 	instanceFile := deleter.instanceFile
 	instanceDir := deleter.instanceDir
 
-	// git pull
+	// take out a mutex lock if desired
+	if etcdLocksGitKey != "" {
+		clientV3, err := clientv3.New(clientv3.Config{Endpoints: endpoints, DialTimeout: dialTimeout})
+		if err != nil {
+			return status.Errorf(codes.Unknown, "error getting etcd client: %s", err.Error())
+		}
+		cancel, session, mutex, err := etcd.GetSessionAndMutex(clientV3, etcdLocksGitKey, "deleter")
+		if err != nil {
+			return status.Errorf(codes.Unknown, "error getting etcd session: %s", err.Error())
+		}
+		deleter.cleanupFuncs = append(deleter.cleanupFuncs, func() error {
+			cancel()
+			helpers.Debugln("Ran deleter CancelFunc")
+			return nil
+		})
+		deleter.cleanupFuncs = append(deleter.cleanupFuncs, func() error {
+			if err = session.Close(); err != nil {
+				return err
+			}
+			helpers.Debugln("Closed deleter session")
+			return nil
+		})
+		deleter.cleanupFuncs = append(deleter.cleanupFuncs, func() error {
+			key := mutex.Key()
+			if err = mutex.Unlock(context.TODO()); err != nil {
+				return err
+			}
+			helpers.Debugf("Released deleter lock for %s", key)
+			return nil
+		})
+	}
+
 	err := gitPull()
 	if err != nil {
 		return err
@@ -342,6 +441,36 @@ func (deleter *gitDeleter) Commit() error {
 	helpers.DebugExecOutput(output, "git", "push")
 	if err != nil {
 		return status.Errorf(codes.Unknown, "git push error: %s", err)
+	}
+
+	return nil
+}
+
+func (deleter *gitDeleter) RunCleanupFuncs() error {
+	err := runCleanupFuncs(deleter.cleanupFuncs)
+	deleter.cleanupFuncs = nil
+	return err
+}
+
+func runCleanupFuncs(funcs []func() error) error {
+	// reverse slice order
+	for i := len(funcs)/2 - 1; i >= 0; i-- {
+		opp := len(funcs) - 1 - i
+		funcs[i], funcs[opp] = funcs[opp], funcs[i]
+	}
+
+	errorString := "Cleanup Errors: "
+	isError := false
+	for _, fn := range funcs {
+		err := fn()
+		if err != nil {
+			isError = true
+			name := runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
+			errorString += fmt.Sprintf("\n%s: %s\n", name, err.Error())
+		}
+	}
+	if isError {
+		return status.Errorf(codes.Unknown, errorString)
 	}
 
 	return nil

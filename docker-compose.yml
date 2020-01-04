@@ -1,47 +1,54 @@
+---
 version: '3'
 services:
+  git-server:
+    image: snarlysodboxer/test-hambone:latest
+    restart: always
+    network_mode: host
+
   etcd:
     image: quay.io/coreos/etcd:latest
     restart: always
     entrypoint:
-      - /usr/local/bin/etcd
+    - /usr/local/bin/etcd
     command:
-      - --data-dir=/etcd-data
-      - --name=node1
-      - --initial-advertise-peer-urls=http://127.0.0.1:2390
-      - --listen-peer-urls=http://127.0.0.1:2390
-      - --advertise-client-urls=http://127.0.0.1:2389
-      - --listen-client-urls=http://127.0.0.1:2389
-      - --initial-cluster=node1=http://127.0.0.1:2390
+    - --data-dir=/etcd-data
+    - --name=node1
+    - --initial-advertise-peer-urls=http://127.0.0.1:2390
+    - --listen-peer-urls=http://127.0.0.1:2390
+    - --advertise-client-urls=http://127.0.0.1:2379
+    - --listen-client-urls=http://127.0.0.1:2379
+    - --initial-cluster=node1=http://127.0.0.1:2390
     volumes:
-      - data-volume:/etcd-data
+    - data-volume:/etcd-data
     network_mode: host
 
-  watcher:
-    image: hambone-watcher:latest
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
-    restart: always
-    working_dir: /go/src/github.com/snarlysodboxer/hambone/examples
-    entrypoint:
-      - CompileDaemon
-    command:
-      - --directory
-      - ../
-      - --build
-      - "go build --tags debug -o ./hambone github.com/snarlysodboxer/hambone"
-      - --command
-      - "../hambone --listen_address 127.0.0.1:50051 --state_store etcd --etcd_endpoints http://127.0.0.1:2389"
-      - --exclude-dir=.git
-      - --color=true
-      - --log-prefix=false
-      - --graceful-kill=true
-    volumes:
-      - ~/.kube:/root/.kube
-      - ~/.minikube:/root/.minikube
-      - ./:/go/src/github.com/snarlysodboxer/hambone
-    network_mode: host # to be able to reach minikube
+  # watcher:
+  #   image: hambone-watcher:latest
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.dev
+  #   restart: always
+  #   working_dir: /go/src/github.com/snarlysodboxer/hambone/examples
+  #   entrypoint:
+  #   - CompileDaemon
+  #   command:
+  #   - --directory
+  #   - ../
+  #   - --build
+  #   - "go build --tags debug -o ./hambone github.com/snarlysodboxer/hambone"
+  #   - --command
+  #   - "../hambone --listen_address 127.0.0.1:50051 --state_store etcd --etcd_endpoints http://127.0.0.1:2389"
+  #   - --exclude-dir=.git
+  #   - --color=true
+  #   - --log-prefix=false
+  #   - --graceful-kill=true
+  #   volumes:
+  #   - ~/.kube:/root/.kube
+  #   - ~/.minikube:/root/.minikube
+  #   - ./:/go/src/github.com/snarlysodboxer/hambone
+  #   network_mode: host  # to be able to reach minikube
 
 volumes:
   data-volume:
+
