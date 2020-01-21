@@ -89,7 +89,7 @@ func (request *GetRequest) Run() error {
 		if !request.GetOptions.GetExcludeStatuses() {
 			for _, pbInstance := range list.Instances {
 				instance := NewInstance(pbInstance, request.server)
-				_ = instance.loadStatuses()
+				_ = instance.LoadStatuses()
 			}
 		}
 	}
@@ -113,7 +113,8 @@ func NewInstance(pbInstance *pb.Instance, server *Server) *Instance {
 	return &Instance{pbInstance, instanceDir, instanceFile, server}
 }
 
-func (instance *Instance) apply() error {
+// Apply creates or updates the instance in the stateStore
+func (instance *Instance) Apply() error {
 	err := NamesEquate(instance)
 	if err != nil {
 		return err
@@ -134,13 +135,13 @@ func (instance *Instance) apply() error {
 	switch {
 	case instance.server.EnableKubectl:
 		// kustomize build <instance path> | kubctl apply -f -
-		_, err = instance.pipeKustomizeToKubectl(false, `apply`, `-f`, `-`)
+		_, err = instance.PipeKustomizeToKubectl(false, `apply`, `-f`, `-`)
 		if err != nil {
 			return updater.Cancel(err)
 		}
 	case instance.server.EnableKustomizeBuild:
 		// kustomize build <instance path>
-		err = instance.kustomizeBuild()
+		err = instance.KustomizeBuild()
 		if err != nil {
 			return updater.Cancel(err)
 		}
@@ -153,7 +154,7 @@ func (instance *Instance) apply() error {
 
 	if instance.server.EnableKubectl {
 		// fill in statuses
-		_ = instance.loadStatuses()
+		_ = instance.LoadStatuses()
 	}
 
 	// don't return OldInstance in response
@@ -162,7 +163,8 @@ func (instance *Instance) apply() error {
 	return nil
 }
 
-func (instance *Instance) delete() error {
+// Delete deletes the instance in the stateStore
+func (instance *Instance) Delete() error {
 	err := NamesEquate(instance)
 	if err != nil {
 		return err
@@ -182,7 +184,7 @@ func (instance *Instance) delete() error {
 
 	if instance.server.EnableKubectl {
 		// kustomize build <instance path> | kubctl delete -f -
-		_, err = instance.pipeKustomizeToKubectl(false, `delete`, `-f`, `-`)
+		_, err = instance.PipeKustomizeToKubectl(false, `delete`, `-f`, `-`)
 		if err != nil {
 			return deleter.Cancel(err)
 		}
@@ -226,8 +228,9 @@ type ItemStatus struct {
 	UpdatedReplicas   int32 `yaml:"updatedReplicas"`
 }
 
-func (instance *Instance) loadStatuses() error {
-	output, err := instance.pipeKustomizeToKubectl(true, `get`, `-o`, `yaml`, `-f`, `-`)
+// LoadStatuses loads status information from Kubernetes into the Instance struct
+func (instance *Instance) LoadStatuses() error {
+	output, err := instance.PipeKustomizeToKubectl(true, `get`, `-o`, `yaml`, `-f`, `-`)
 	if err != nil {
 		log.Println(err)
 		instance.Instance.StatusesErrorMessage = string(output)
@@ -256,7 +259,8 @@ func (instance *Instance) loadStatuses() error {
 	return nil
 }
 
-func (instance *Instance) pipeKustomizeToKubectl(suppressOutput bool, args ...string) ([]byte, error) {
+// PipeKustomizeToKubectl runs `kustomize build <dir>` and pipes it's output into a kubectl command
+func (instance *Instance) PipeKustomizeToKubectl(suppressOutput bool, args ...string) ([]byte, error) {
 	instanceDir := instance.InstanceDir
 	emptyBytes := []byte{}
 
@@ -330,7 +334,8 @@ func (instance *Instance) pipeKustomizeToKubectl(suppressOutput bool, args ...st
 	return output, nil
 }
 
-func (instance *Instance) kustomizeBuild() error {
+// KustomizeBuild runs `kustomize build <dir>` to validate that it succeeds
+func (instance *Instance) KustomizeBuild() error {
 	instanceDir := instance.InstanceDir
 
 	// run kustomize build

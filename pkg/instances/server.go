@@ -23,7 +23,7 @@ func NewInstancesServer(instancesDir, templatesDir string, stateStore state.Engi
 // Apply adds/updates the given Instance, applies it to Kubernetes if desired, and commits the changes, rolling back as necessary
 func (server *Server) Apply(ctx context.Context, pbInstance *pb.Instance) (*pb.Instance, error) {
 	instance := NewInstance(pbInstance, server)
-	err := instance.apply()
+	err := instance.Apply()
 	if err != nil {
 		return pbInstance, err
 	}
@@ -45,7 +45,7 @@ func (server *Server) Get(ctx context.Context, getOptions *pb.GetOptions) (*pb.I
 // Delete deletes an Instance from Kubernetes and then from the State Store
 func (server *Server) Delete(ctx context.Context, pbInstance *pb.Instance) (*pb.Instance, error) {
 	instance := NewInstance(pbInstance, server)
-	err := instance.delete()
+	err := instance.Delete()
 	if err != nil {
 		return pbInstance, err
 	}
