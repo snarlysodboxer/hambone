@@ -541,8 +541,8 @@ func loadInstance(instancesDir, name string, list *pb.InstanceList, required boo
 			if err != nil {
 				return status.Errorf(codes.Unknown, "error walking dir %s: %s", path, err.Error())
 			}
-			// skip the kustomization.yaml file and directories
-			if info.Name() == helpers.KustomizationFileName || info.IsDir() {
+			// don't load directories as Instance Files
+			if info.IsDir() {
 				return nil
 			}
 			contents, err = ioutil.ReadFile(path)
@@ -552,6 +552,10 @@ func loadInstance(instancesDir, name string, list *pb.InstanceList, required boo
 			relativePath, err := filepath.Rel(instanceDir, path)
 			if err != nil {
 				return status.Errorf(codes.Unknown, "error getting relative path: %s", err.Error())
+			}
+			// skip the main kustomization.yaml file
+			if relativePath == helpers.KustomizationFileName {
+				return nil
 			}
 			pbFile := &pb.File{Name: relativePath, Directory: filepath.Dir(relativePath), Contents: string(contents)}
 			instance.Files = append(instance.Files, pbFile)

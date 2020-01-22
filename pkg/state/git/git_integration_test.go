@@ -214,28 +214,40 @@ func TestGitTemplatesGetter(t *testing.T) {
 	defer os.RemoveAll(tempDir) // clean up
 	templatesDir := filepath.Join(repoDir, "templates")
 	templateName := "my-template"
+	// templates/my-template
 	templateDir := filepath.Join(templatesDir, templateName)
 	appName := "my-app"
+	// templates/my-template/my-app
 	myAppDir := filepath.Join(templateDir, appName)
 	subAppName := "my-sub-app"
+	// templates/my-template/my-app/my-sub-app
 	myNestedDir := filepath.Join(myAppDir, subAppName)
 	err = os.MkdirAll(myNestedDir, 0755)
 	if err != nil {
 		t.Fatal(err)
 	}
+	// templates/my-template/kustomization.yaml
 	kYamlPath := filepath.Join(templateDir, helpers.KustomizationFileName)
 	err = ioutil.WriteFile(kYamlPath, kustomizationYaml, 0666)
 	if err != nil {
 		t.Fatal(err)
 	}
 	dYamlName := "deployment.yaml"
+	// templates/my-template/my-app/deployment.yaml
 	dYamlPath := filepath.Join(myAppDir, dYamlName)
 	err = ioutil.WriteFile(dYamlPath, deploymentYaml, 0666)
 	if err != nil {
 		t.Fatal(err)
 	}
+	// templates/my-template/my-app/my-sub-app/deployment.yaml
 	dNestedYamlPath := filepath.Join(myNestedDir, dYamlName)
 	err = ioutil.WriteFile(dNestedYamlPath, deploymentYaml, 0666)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// templates/my-template/my-app/my-sub-app/kustomization.yaml
+	kNestedYamlPath := filepath.Join(myNestedDir, helpers.KustomizationFileName)
+	err = ioutil.WriteFile(kNestedYamlPath, kustomizationYaml, 0666)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,6 +265,9 @@ func TestGitTemplatesGetter(t *testing.T) {
 
 	// check results
 	template := templatesGetter.InstanceList.Instances[0]
+	if len(template.Files) != 3 {
+		t.Fatalf("Expected: %d, Got: %d", 3, len(template.Files))
+	}
 	if template.Name != templateName {
 		t.Errorf("Expected: %s, Got: %s", templateName, template.Name)
 	}
@@ -260,16 +275,25 @@ func TestGitTemplatesGetter(t *testing.T) {
 		t.Errorf("Expected: \n%s\n, Got: \n%s", string(kustomizationYaml), template.KustomizationYaml)
 	}
 	appFile := &pb.File{}
+	// my-app/deployment.yaml
 	dYamlFilePath := fmt.Sprintf("%s/%s", appName, dYamlName)
 	subAppFile := &pb.File{}
+	// my-app/my-sub-app
 	subAppDir := fmt.Sprintf("%s/%s", appName, subAppName)
-	dNestedYamlFilePath := fmt.Sprintf("%s/%s/%s", appName, subAppName, dYamlName)
+	// my-app/my-sub-app/deployment.yaml
+	dNestedYamlFilePath := fmt.Sprintf("%s/%s", subAppDir, dYamlName)
+	subAppKFile := &pb.File{}
+	// my-app/my-sub-app/kustomization.yaml
+	kNestedYamlFilePath := fmt.Sprintf("%s/%s", subAppDir, helpers.KustomizationFileName)
 	for _, file := range template.Files {
 		if file.Name == dYamlFilePath {
 			appFile = file
 		}
 		if file.Name == dNestedYamlFilePath {
 			subAppFile = file
+		}
+		if file.Name == kNestedYamlFilePath {
+			subAppKFile = file
 		}
 	}
 	if appFile.Name != dYamlFilePath {
@@ -289,6 +313,15 @@ func TestGitTemplatesGetter(t *testing.T) {
 	}
 	if subAppFile.Contents != string(deploymentYaml) {
 		t.Errorf("Expected: \n%s\n, Got: \n%s", string(deploymentYaml), subAppFile.Contents)
+	}
+	if subAppKFile.Name != kNestedYamlFilePath {
+		t.Errorf("Expected: %s, Got: %s", kNestedYamlFilePath, subAppKFile.Name)
+	}
+	if subAppKFile.Directory != subAppDir {
+		t.Errorf("Expected: %s, Got: %s", subAppDir, subAppKFile.Directory)
+	}
+	if subAppKFile.Contents != string(kustomizationYaml) {
+		t.Errorf("Expected: \n%s\n, Got: \n%s", string(kustomizationYaml), subAppKFile.Contents)
 	}
 }
 
