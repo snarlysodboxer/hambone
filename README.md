@@ -114,6 +114,7 @@ One could build an image `FROM snarlysodboxer/hambone:<tag>` and add a Git repos
 
 ### Roadmap
 
+* TODO When rerunning instances.Apply() after a failed `git push`, a bug allows it to falsely succeed.
 * Create example specs for running `hambone` in Kubernetes
 * Add metrics
 * Document better

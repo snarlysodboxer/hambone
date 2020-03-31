@@ -114,7 +114,7 @@ func NewInstance(pbInstance *pb.Instance, server *Server) *Instance {
 }
 
 // Apply creates or updates the instance in the stateStore
-func (instance *Instance) Apply() error {
+func (instance *Instance) Apply(skipCommit bool) error {
 	err := NamesEquate(instance)
 	if err != nil {
 		return err
@@ -147,7 +147,7 @@ func (instance *Instance) Apply() error {
 		}
 	}
 
-	err = updater.Commit()
+	err = updater.Commit(skipCommit)
 	if err != nil {
 		return err
 	}
