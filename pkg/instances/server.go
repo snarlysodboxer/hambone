@@ -23,7 +23,7 @@ func NewInstancesServer(instancesDir, templatesDir string, stateStore state.Engi
 // Apply adds/updates the given Instance, applies it to Kubernetes if desired, and commits the changes, rolling back as necessary
 func (server *Server) Apply(ctx context.Context, pbInstance *pb.Instance) (*pb.Instance, error) {
 	instance := NewInstance(pbInstance, server)
-	err := instance.Apply()
+	err := instance.Apply(false)
 	if err != nil {
 		return pbInstance, err
 	}

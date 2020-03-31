@@ -17,7 +17,7 @@ var (
 type Updater interface {
 	Init() error
 	Cancel(error) error
-	Commit() error
+	Commit(bool) error
 	RunCleanupFuncs() error
 }
 
