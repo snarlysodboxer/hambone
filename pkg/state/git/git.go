@@ -40,6 +40,7 @@ type Engine struct {
 	WorkingDir      string
 	EndpointsString string
 	EtcdLocksGitKey string
+	Branch          string
 }
 
 // Init does setup
@@ -51,6 +52,18 @@ func (engine *Engine) Init() error {
 	err = gitPull()
 	if err != nil {
 		return err
+	}
+	output, err := exec.Command("git", "pull").CombinedOutput()
+	if err != nil {
+		helpers.DebugExecOutput(output, "git", "pull")
+		if strings.Contains(string(output), "Connection timed out") {
+			return fmt.Errorf("git pull failed with a connection timeout: %+v, %v", err, output)
+		}
+		return fmt.Errorf("git pull failed for unknown reasons: %+v, %v", err, output)
+	}
+	output, err = exec.Command("git", "checkout", engine.Branch).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git checkout failed for unknown reasons: %+v, %v", err, output)
 	}
 
 	etcdLocksGitKey = engine.EtcdLocksGitKey
@@ -288,7 +301,7 @@ func (updater *gitUpdater) Cancel(err error) error {
 }
 
 // Commit is expected to add/update the Instance in the state store
-func (updater *gitUpdater) Commit() error {
+func (updater *gitUpdater) Commit(skipCommit bool) error {
 	instanceFile := updater.instanceFile
 	instanceDir := updater.instanceDir
 
@@ -309,15 +322,17 @@ func (updater *gitUpdater) Commit() error {
 			return status.Errorf(codes.Unknown, "git add error: %s", err)
 		}
 
-		// git commit
-		args = []string{"commit", "-m", fmt.Sprintf(`Automate hambone apply for %s`, updater.Instance.Name)}
-		if _, err := rollbackCommand(instanceDir, instanceFile, "git", args...); err != nil {
-			return status.Errorf(codes.Unknown, "git commit error: %s", err)
-		}
+		if !skipCommit {
+			// git commit
+			args = []string{"commit", "-m", fmt.Sprintf(`Automate hambone apply for %s`, updater.Instance.Name)}
+			if _, err := rollbackCommand(instanceDir, instanceFile, "git", args...); err != nil {
+				return status.Errorf(codes.Unknown, "git commit error: %s", err)
+			}
 
-		// git push
-		if _, err = rollbackCommand(instanceDir, instanceFile, "git", "push"); err != nil {
-			return status.Errorf(codes.Unknown, "git push error: %s", err)
+			// git push
+			if _, err = rollbackCommand(instanceDir, instanceFile, "git", "push"); err != nil {
+				return status.Errorf(codes.Unknown, "git push error: %s", err)
+			}
 		}
 	}
 

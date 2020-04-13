@@ -245,7 +245,7 @@ func (updater *etcdUpdater) Cancel(err error) error {
 }
 
 // Commit is expected to add/update the Instance in the state store
-func (updater *etcdUpdater) Commit() (erR error) {
+func (updater *etcdUpdater) Commit(_ bool) (erR error) {
 	instanceKey := getInstanceKey(updater.Instance.Name)
 
 	// at this point, OldInstance matches if present, we have a lock, and
