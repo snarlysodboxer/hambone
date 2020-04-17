@@ -306,10 +306,10 @@ func (updater *gitUpdater) Commit(skipCommit bool) error {
 	instanceDir := updater.instanceDir
 
 	// check if there's anything to commit
-	args := []string{`diff`, `--exit-code`, instanceDir}
+	args := []string{`diff`, `--exit-code`, updater.workingDir}
 	output, err := exec.Command("git", args...).CombinedOutput()
 	helpers.DebugExecOutput(output, "git", args...)
-	test := fmt.Sprintf("git ls-files --exclude-standard --others %s", instanceDir)
+	test := fmt.Sprintf("git ls-files --exclude-standard --others %s", updater.workingDir)
 	args = []string{`-c`, fmt.Sprintf("test -z $(%s)", test)}
 	output, untrackedErr := exec.Command("sh", args...).CombinedOutput()
 	helpers.DebugExecOutput(output, "sh", args...)
