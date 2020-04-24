@@ -49,17 +49,15 @@ func (engine *Engine) Init() error {
 	if err != nil {
 		return status.Errorf(codes.Unknown, "error changing directory: %s", err.Error())
 	}
+	// last branch may have been deleted, so start by checking out master
+	// TODO consider not hard-coding master branch here
+	output, err := exec.Command("git", "checkout", "master").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("git checkout failed for unknown reasons: %+v, %v", err, output)
+	}
 	err = gitPull()
 	if err != nil {
 		return err
-	}
-	output, err := exec.Command("git", "pull").CombinedOutput()
-	if err != nil {
-		helpers.DebugExecOutput(output, "git", "pull")
-		if strings.Contains(string(output), "Connection timed out") {
-			return fmt.Errorf("git pull failed with a connection timeout: %+v, %v", err, output)
-		}
-		return fmt.Errorf("git pull failed for unknown reasons: %+v, %v", err, output)
 	}
 	output, err = exec.Command("git", "checkout", engine.Branch).CombinedOutput()
 	if err != nil {
